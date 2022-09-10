@@ -6,7 +6,7 @@ authors = ["Volker Schwaberow <volker@schwaberow.de>"]
 homepage = "https://github.com/vschwaberow/rprobe.git"
 repository = "https://github.com/vschwaberow/rprobe.git"
 description = "A simple tool to probe a remote host http or https connection"
-keywords = ["rust", "network", "security", "probe", "http", "https"]
+keywords = ["rust", "network", "security", "network"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
