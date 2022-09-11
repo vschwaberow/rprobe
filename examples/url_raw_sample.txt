@@ -1,0 +1,4 @@
+github.com
+google.de
+golem.de
+heise.de
