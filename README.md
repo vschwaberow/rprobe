@@ -12,7 +12,8 @@ or clone the source code and run `cargo build --release` to build the binary.
 ## Usage
 
 ````
-cat examples/url_raw_example.txt | rprobe
+cat examples/urls_sample.txt | rprobe
+cat examples/hosts_sample.txt | rprobe
 ````
 ## Contribution 
 
