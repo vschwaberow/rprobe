@@ -12,7 +12,7 @@ or clone the source code and run `cargo build --release` to build the binary.
 ## Usage
 
 ````
-cat examples/raw_example.txt | rprobe
+cat examples/url_raw_example.txt | rprobe
 ````
 ## Contribution 
 
