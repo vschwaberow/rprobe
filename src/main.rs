@@ -41,19 +41,15 @@ fn main() {
         end_time: 0,
     };
 
-    // check for command line arguments
     let args: Vec<String> = std::env::args().collect();
 
-    // check for a help switch
     if args.len() == 2 && (args[1] == "-h" || args[1] == "--help") {
         // print program name, version, author and license
         println!("{} {} by {} under {} license.", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_AUTHORS"), env!("CARGO_PKG_LICENSE"));
-        println!("Usage: {} [file]", args[0]);
+        println!("Usage: {}", args[0]);
         // exit program
         std::process::exit(0);
     }
-
-
 
     let stdin = io::stdin();
     let lines = stdin.lock().lines();
