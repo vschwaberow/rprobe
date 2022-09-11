@@ -44,10 +44,8 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() == 2 && (args[1] == "-h" || args[1] == "--help") {
-        // print program name, version, author and license
         println!("{} {} by {} under {} license.", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_AUTHORS"), env!("CARGO_PKG_LICENSE"));
         println!("Usage: {}", args[0]);
-        // exit program
         std::process::exit(0);
     }
 
@@ -80,7 +78,6 @@ fn main() {
             let client = reqwest::Client::new();
             
             let request = client.get(line).build().unwrap();
-            // check for connection error
             let response = client.execute(request).await;
             match response {
                 Ok(response) => {
