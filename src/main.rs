@@ -19,28 +19,40 @@ Author(s): Volker Schwaberow
 */
 
 use std::io::{self, BufRead};
-use tokio::runtime::Runtime;
-
+#[derive(Debug, Clone, Copy)]
 struct GetState {
     total_requests: u64,
-    successful_requests: u64,
-    failed_requests: u64,
-    total_time: u64,
+    successful_requests: usize,
+    failed_requests: usize,
     start_time: u64,
     end_time: u64,
 }
 
-fn main() {
+impl GetState {
+    fn new() -> GetState {
+        GetState {
+            total_requests: 0,
+            successful_requests: 0,
+            failed_requests: 0,
+            start_time: 0,
+            end_time: 0,
+        }
 
-    let mut tokio_state = GetState {
-        total_requests: 0,
-        successful_requests: 0,
-        failed_requests: 0,
-        total_time: 0,
-        start_time: 0,
-        end_time: 0,
-    };
+    }
 
+    fn add_success(&mut self) {
+        self.successful_requests += 1;
+    }
+
+    fn add_failure(&mut self) {
+        self.failed_requests += 1;
+    }
+}
+
+#[tokio::main]
+async fn main() {
+
+    let mut tokio_state = GetState::new();
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() == 2 && (args[1] == "-h" || args[1] == "--help") {
@@ -66,40 +78,55 @@ fn main() {
         }
     }
 
+
     tokio_state.total_requests = lines_vec.len() as u64;
     tokio_state.start_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap().as_millis() as u64;
 
-    let  rt = Runtime::new().unwrap();
+    let mut tasks = Vec::new();
 
-    rt.block_on(async {
-        for line in lines_vec {
+    for line in lines_vec {
+        let task = tokio::spawn(async move {
             let client = reqwest::Client::new();
             
-            let request = client.get(line).build().unwrap();
-            let response = client.execute(request).await;
-            match response {
-                Ok(response) => {
-                    if response.status().is_success() {
-                        println!("{}", response.url());
-                        tokio_state.successful_requests += 1;
-                    }
-                },
-                Err(_e) => {
-                    tokio_state.failed_requests += 1;
-                    continue;
+            let res = client.get(&line)
+                .timeout(std::time::Duration::from_secs(5))
+                .send().await;
+            match res {
+                Ok(_) => {
+                    println!("{}", line);
+                    return true;
+                }
+                Err(_) => {
+                    return false;
                 }
             }
+        });
+        tasks.push(task);
+    }
+
+    for task in tasks {
+        let rval = task.await.unwrap();   
+        if rval {
+            tokio_state.add_success();
+        } else {
+            tokio_state.add_failure();
         }
-    });
+
+    }
+
 
     tokio_state.end_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap().as_millis() as u64;
-    tokio_state.total_time = tokio_state.end_time - tokio_state.start_time;
-    println!("{} requests in {} ms, {} successful, {} failed", tokio_state.total_requests, tokio_state.total_time, tokio_state.successful_requests, tokio_state.failed_requests);
 
+    let human_read_starttime = chrono::NaiveDateTime::from_timestamp((tokio_state.start_time / 1000) as i64, 0);
+    let human_read_endtime = chrono::NaiveDateTime::from_timestamp((tokio_state.end_time / 1000) as i64, 0);
+    println!("");
+    println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", tokio_state.total_requests, human_read_starttime, human_read_endtime, tokio_state.end_time - tokio_state.start_time, tokio_state.successful_requests, tokio_state.failed_requests);
+
+    
 }
 
 
