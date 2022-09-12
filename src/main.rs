@@ -17,37 +17,10 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 Author(s): Volker Schwaberow
 */
+mod getstate;
 
+use getstate::GetState;
 use std::io::{self, BufRead};
-#[derive(Debug, Clone, Copy)]
-struct GetState {
-    total_requests: u64,
-    successful_requests: usize,
-    failed_requests: usize,
-    start_time: u64,
-    end_time: u64,
-}
-
-impl GetState {
-    fn new() -> GetState {
-        GetState {
-            total_requests: 0,
-            successful_requests: 0,
-            failed_requests: 0,
-            start_time: 0,
-            end_time: 0,
-        }
-
-    }
-
-    fn add_success(&mut self) {
-        self.successful_requests += 1;
-    }
-
-    fn add_failure(&mut self) {
-        self.failed_requests += 1;
-    }
-}
 
 #[tokio::main]
 async fn main() {
