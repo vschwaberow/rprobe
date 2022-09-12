@@ -27,7 +27,7 @@ pub struct GetState {
     pub end_time: u64,
 }
 
-impl  GetState {
+impl GetState {
     pub fn new() -> GetState {
         GetState {
             total_requests: 0,
@@ -36,7 +36,6 @@ impl  GetState {
             start_time: 0,
             end_time: 0,
         }
-
     }
 
     pub fn add_success(&mut self) {
