@@ -17,50 +17,16 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 Author(s): Volker Schwaberow
 */
+mod getstate;
 
+use getstate::GetState;
 use std::io::{self, BufRead};
-#[derive(Debug, Clone, Copy)]
-struct GetState {
-    total_requests: u64,
-    successful_requests: usize,
-    failed_requests: usize,
-    start_time: u64,
-    end_time: u64,
+
+fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
+    chrono::NaiveDateTime::from_timestamp((time / 1000) as i64, 0)
 }
 
-impl GetState {
-    fn new() -> GetState {
-        GetState {
-            total_requests: 0,
-            successful_requests: 0,
-            failed_requests: 0,
-            start_time: 0,
-            end_time: 0,
-        }
-
-    }
-
-    fn add_success(&mut self) {
-        self.successful_requests += 1;
-    }
-
-    fn add_failure(&mut self) {
-        self.failed_requests += 1;
-    }
-}
-
-#[tokio::main]
-async fn main() {
-
-    let mut tokio_state = GetState::new();
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() == 2 && (args[1] == "-h" || args[1] == "--help") {
-        println!("{} {} by {} under {} license.", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_AUTHORS"), env!("CARGO_PKG_LICENSE"));
-        println!("Usage: {}", args[0]);
-        std::process::exit(0);
-    }
-
+fn get_stdio_lines() -> Vec<String> {
     let stdin = io::stdin();
     let lines = stdin.lock().lines();
 
@@ -77,7 +43,22 @@ async fn main() {
             lines_vec.push(format!("https://{}", actual));
         }
     }
+    lines_vec
+}
 
+#[tokio::main]
+async fn main() {
+
+    let mut tokio_state = GetState::new();
+    let args: Vec<String> = std::env::args().collect();
+
+    if args.len() == 2 && (args[1] == "-h" || args[1] == "--help") {
+        println!("{} {} by {} under {} license.", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_AUTHORS"), env!("CARGO_PKG_LICENSE"));
+        println!("Usage: {}", args[0]);
+        std::process::exit(0);
+    }
+
+    let lines_vec = get_stdio_lines();
 
     tokio_state.total_requests = lines_vec.len() as u64;
     tokio_state.start_time = std::time::SystemTime::now()
@@ -116,15 +97,12 @@ async fn main() {
 
     }
 
-
     tokio_state.end_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap().as_millis() as u64;
 
-    let human_read_starttime = chrono::NaiveDateTime::from_timestamp((tokio_state.start_time / 1000) as i64, 0);
-    let human_read_endtime = chrono::NaiveDateTime::from_timestamp((tokio_state.end_time / 1000) as i64, 0);
     println!("");
-    println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", tokio_state.total_requests, human_read_starttime, human_read_endtime, tokio_state.end_time - tokio_state.start_time, tokio_state.successful_requests, tokio_state.failed_requests);
+    println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", tokio_state.total_requests, get_human_readable_time(tokio_state.start_time), get_human_readable_time(tokio_state.end_time), tokio_state.end_time - tokio_state.start_time, tokio_state.successful_requests, tokio_state.failed_requests);
 
     
 }
