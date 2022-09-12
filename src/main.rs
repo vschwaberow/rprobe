@@ -22,6 +22,10 @@ mod getstate;
 use getstate::GetState;
 use std::io::{self, BufRead};
 
+fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
+    chrono::NaiveDateTime::from_timestamp((time / 1000) as i64, 0)
+}
+
 #[tokio::main]
 async fn main() {
 
@@ -89,15 +93,12 @@ async fn main() {
 
     }
 
-
     tokio_state.end_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap().as_millis() as u64;
 
-    let human_read_starttime = chrono::NaiveDateTime::from_timestamp((tokio_state.start_time / 1000) as i64, 0);
-    let human_read_endtime = chrono::NaiveDateTime::from_timestamp((tokio_state.end_time / 1000) as i64, 0);
     println!("");
-    println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", tokio_state.total_requests, human_read_starttime, human_read_endtime, tokio_state.end_time - tokio_state.start_time, tokio_state.successful_requests, tokio_state.failed_requests);
+    println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", tokio_state.total_requests, get_human_readable_time(tokio_state.start_time), get_human_readable_time(tokio_state.end_time), tokio_state.end_time - tokio_state.start_time, tokio_state.successful_requests, tokio_state.failed_requests);
 
     
 }
