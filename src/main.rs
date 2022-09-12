@@ -26,18 +26,7 @@ fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
     chrono::NaiveDateTime::from_timestamp((time / 1000) as i64, 0)
 }
 
-#[tokio::main]
-async fn main() {
-
-    let mut tokio_state = GetState::new();
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() == 2 && (args[1] == "-h" || args[1] == "--help") {
-        println!("{} {} by {} under {} license.", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_AUTHORS"), env!("CARGO_PKG_LICENSE"));
-        println!("Usage: {}", args[0]);
-        std::process::exit(0);
-    }
-
+fn get_stdio_lines() -> Vec<String> {
     let stdin = io::stdin();
     let lines = stdin.lock().lines();
 
@@ -54,7 +43,22 @@ async fn main() {
             lines_vec.push(format!("https://{}", actual));
         }
     }
+    lines_vec
+}
 
+#[tokio::main]
+async fn main() {
+
+    let mut tokio_state = GetState::new();
+    let args: Vec<String> = std::env::args().collect();
+
+    if args.len() == 2 && (args[1] == "-h" || args[1] == "--help") {
+        println!("{} {} by {} under {} license.", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_AUTHORS"), env!("CARGO_PKG_LICENSE"));
+        println!("Usage: {}", args[0]);
+        std::process::exit(0);
+    }
+
+    let lines_vec = get_stdio_lines();
 
     tokio_state.total_requests = lines_vec.len() as u64;
     tokio_state.start_time = std::time::SystemTime::now()
