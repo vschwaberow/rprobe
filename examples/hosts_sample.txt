@@ -2,3 +2,6 @@ github.com
 google.de
 golem.de
 heise.de
+facebook.com
+twitter.com
+amazon.com
