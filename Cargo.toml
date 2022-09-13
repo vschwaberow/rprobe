@@ -1,6 +1,6 @@
 [package]
 name = "rprobe"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT/Apache-2.0"
 authors = ["Volker Schwaberow <volker@schwaberow.de>"]
@@ -8,11 +8,18 @@ homepage = "https://github.com/vschwaberow/rprobe.git"
 repository = "https://github.com/vschwaberow/rprobe.git"
 description = "A simple tool to probe a remote host http or https connection"
 keywords = ["rust", "network", "security", "network"]
+categories = ["command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.release]
+strip = "symbols"
+lto = true
+codegen-units = 1
+opt-level = "s"
+
 [dependencies]
+atty = "0.2.14"
 chrono = "0.4.22"
-regex = "1.6.0"
 reqwest = "0.11.11"
 tokio = { version = "1.21.0", features = ["full"] }

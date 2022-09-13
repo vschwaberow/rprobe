@@ -1,4 +1,7 @@
-https://www.github.com
-http://www.google.de
-https://www.golem.de
-https://www.heise.de
+https://github.com
+https://google.de
+https://golem.de
+https://heise.de
+https://www.facebook.com
+https://www.twitter.com
+https://www.amazon.com

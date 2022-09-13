@@ -17,9 +17,12 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 Author(s): Volker Schwaberow
 */
+
 mod getstate;
 
+use atty::Stream;
 use getstate::GetState;
+use std::env;
 use std::io::{self, BufRead};
 
 fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
@@ -46,24 +49,63 @@ fn get_stdio_lines() -> Vec<String> {
     lines_vec
 }
 
+fn check_for_stdin() {
+    if atty::is(Stream::Stdin) {
+        print_help();
+        std::process::exit(0);
+    }
+}
+
+fn get_now() -> u64 {
+    std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap().as_millis() as u64
+}
+
+fn print_prg_info() {
+    let prg_info = format!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+    let prg_authors = format!("(c) 2022 by {}", env!("CARGO_PKG_AUTHORS"));
+    let prg_description = format!("{}", env!("CARGO_PKG_DESCRIPTION"));
+    println!("{} {}", prg_info, prg_authors);
+    println!("{}", prg_description);
+    println!("");
+}
+
+fn print_help() {
+    print_prg_info();
+    println!("Usage: cat domains.txt | rprobe [options]");
+    println!("Options:");
+    println!("  -h, --help\t\t\tPrint this help");
+    println!("  -v, --version\t\t\tPrint version information");
+    println!("  -t, --timeout\t\t\tSet timeout in seconds (default: 10)");
+    println!("");
+}
+
 #[tokio::main]
 async fn main() {
 
     let mut tokio_state = GetState::new();
-    let args: Vec<String> = std::env::args().collect();
+    let mut timeout = 10;
+    check_for_stdin();
 
-    if args.len() == 2 && (args[1] == "-h" || args[1] == "--help") {
-        println!("{} {} by {} under {} license.", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_AUTHORS"), env!("CARGO_PKG_LICENSE"));
-        println!("Usage: {}", args[0]);
-        std::process::exit(0);
+    let args: Vec<String> = env::args().collect();
+
+    for (index, arg) in args.iter().enumerate() {
+        if arg == "-t" || arg == "--timeout" {
+            timeout = args[index + 1].parse::<u64>().unwrap();
+        } else if (arg == "-h" || arg == "--help") && args.len() == 2 {
+            print_help();
+            std::process::exit(0);
+        } else if (arg == "-v" || arg == "--version") && args.len() == 2 {
+            print_prg_info();
+            std::process::exit(0);
+        }
     }
 
     let lines_vec = get_stdio_lines();
 
     tokio_state.total_requests = lines_vec.len() as u64;
-    tokio_state.start_time = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap().as_millis() as u64;
+    tokio_state.start_time = get_now();
 
     let mut tasks = Vec::new();
 
@@ -72,7 +114,7 @@ async fn main() {
             let client = reqwest::Client::new();
             
             let res = client.get(&line)
-                .timeout(std::time::Duration::from_secs(5))
+                .timeout(std::time::Duration::from_secs(timeout))
                 .send().await;
             match res {
                 Ok(_) => {
@@ -97,10 +139,7 @@ async fn main() {
 
     }
 
-    tokio_state.end_time = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap().as_millis() as u64;
-
+    tokio_state.end_time = get_now();
     println!("");
     println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", tokio_state.total_requests, get_human_readable_time(tokio_state.start_time), get_human_readable_time(tokio_state.end_time), tokio_state.end_time - tokio_state.start_time, tokio_state.successful_requests, tokio_state.failed_requests);
 
