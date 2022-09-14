@@ -106,18 +106,18 @@ async fn main() {
         }
     }
 
-
+    tokio_state.start_time = get_now();
     let mut http = Http::new(timeout, tokio_state);
     let lines_vec = get_stdio_lines();
 
-    tokio_state.start_time = get_now();
     let lines_vec2 = lines_vec.clone();
     http.work(lines_vec2).await;
-    tokio_state.total_requests = lines_vec.len() as u64;
-    tokio_state.end_time = get_now();
+
+    http.state_ptr.total_requests = lines_vec.len() as u64;
+    http.state_ptr.end_time = get_now();
 
     println!("");
-    println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", tokio_state.total_requests, get_human_readable_time(tokio_state.start_time), get_human_readable_time(tokio_state.end_time), tokio_state.end_time - tokio_state.start_time, tokio_state.successful_requests, tokio_state.failed_requests);
+    println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", http.state_ptr.total_requests, get_human_readable_time(http.state_ptr.start_time), get_human_readable_time(http.state_ptr.end_time), http.state_ptr.end_time - http.state_ptr.start_time, http.state_ptr.successful_requests, http.state_ptr.failed_requests);
 
     
 }
