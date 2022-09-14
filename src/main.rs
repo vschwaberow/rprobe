@@ -19,17 +19,21 @@ Author(s): Volker Schwaberow
 */
 
 mod getstate;
+mod http;
 
 use atty::Stream;
 use getstate::GetState;
+use http::Http;
 use std::env;
 use std::io::{self, BufRead};
+
 
 fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
     chrono::NaiveDateTime::from_timestamp((time / 1000) as i64, 0)
 }
 
 fn get_stdio_lines() -> Vec<String> {
+
     let stdin = io::stdin();
     let lines = stdin.lock().lines();
 
@@ -102,44 +106,16 @@ async fn main() {
         }
     }
 
+
+    let mut http = Http::new(timeout, tokio_state);
     let lines_vec = get_stdio_lines();
 
-    tokio_state.total_requests = lines_vec.len() as u64;
     tokio_state.start_time = get_now();
-
-    let mut tasks = Vec::new();
-
-    for line in lines_vec {
-        let task = tokio::spawn(async move {
-            let client = reqwest::Client::new();
-            
-            let res = client.get(&line)
-                .timeout(std::time::Duration::from_secs(timeout))
-                .send().await;
-            match res {
-                Ok(_) => {
-                    println!("{}", line);
-                    return true;
-                }
-                Err(_) => {
-                    return false;
-                }
-            }
-        });
-        tasks.push(task);
-    }
-
-    for task in tasks {
-        let rval = task.await.unwrap();   
-        if rval {
-            tokio_state.add_success();
-        } else {
-            tokio_state.add_failure();
-        }
-
-    }
-
+    let lines_vec2 = lines_vec.clone();
+    http.work(lines_vec2).await;
+    tokio_state.total_requests = lines_vec.len() as u64;
     tokio_state.end_time = get_now();
+
     println!("");
     println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", tokio_state.total_requests, get_human_readable_time(tokio_state.start_time), get_human_readable_time(tokio_state.end_time), tokio_state.end_time - tokio_state.start_time, tokio_state.successful_requests, tokio_state.failed_requests);
 
