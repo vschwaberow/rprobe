@@ -44,11 +44,8 @@ fn get_stdio_lines() -> Rc<Vec<String>> {
         if line_unwrap.starts_with("https://") || line_unwrap.starts_with("http://") {
             lines_vec.push(line_unwrap);
         } else {
-            // get string from line_unwrap to String
-            let l = format!("http://{}", line_unwrap.to_string());
-            let ls = format!("https://{}", line_unwrap.to_string());
-            lines_vec.push(l);
-            lines_vec.push(ls);
+            lines_vec.push(format!("http://{}", line_unwrap.to_string()));
+            lines_vec.push(format!("https://{}", line_unwrap.to_string()));
         }
     }
     Rc::new(lines_vec)
