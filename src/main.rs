@@ -114,7 +114,6 @@ async fn main() {
     let lines_vec2 = lines_vec.clone();
     http.work(lines_vec2).await;
 
-
     http.state_ptr.end_time = get_now();
 
     println!("");
