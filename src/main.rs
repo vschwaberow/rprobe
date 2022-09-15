@@ -109,11 +109,12 @@ async fn main() {
     tokio_state.start_time = get_now();
     let mut http = Http::new(timeout, tokio_state);
     let lines_vec = get_stdio_lines();
+    http.state_ptr.total_requests = lines_vec.len() as u64;
 
     let lines_vec2 = lines_vec.clone();
     http.work(lines_vec2).await;
 
-    http.state_ptr.total_requests = lines_vec.len() as u64;
+
     http.state_ptr.end_time = get_now();
 
     println!("");
