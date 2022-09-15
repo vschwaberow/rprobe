@@ -26,7 +26,7 @@ Usage: cat domains.txt | rprobe [options]
 Options:
   -h, --help                    Print this help
   -v, --version                 Print version information
-  -t, --timeout                 Set timeout in seconds (default: 5)
+  -t, --timeout                 Set timeout in seconds (default: 10)
 ````
 
 ## Contribution 
