@@ -25,14 +25,14 @@ use atty::Stream;
 use getstate::GetState;
 use http::Http;
 use std::env;
+use std::rc::Rc;
 use std::io::{self, BufRead};
-
 
 fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
     chrono::NaiveDateTime::from_timestamp((time / 1000) as i64, 0)
 }
 
-fn get_stdio_lines() -> Vec<String> {
+fn get_stdio_lines() -> Rc<Vec<String>> {
 
     let stdin = io::stdin();
     let lines = stdin.lock().lines();
@@ -42,15 +42,16 @@ fn get_stdio_lines() -> Vec<String> {
     for line in lines {
         let line_unwrap = line.unwrap();
         if line_unwrap.starts_with("https://") || line_unwrap.starts_with("http://") {
-            let actual = line_unwrap.clone();
-            lines_vec.push(actual);
+            lines_vec.push(line_unwrap);
         } else {
-            let actual = line_unwrap.clone();
-            lines_vec.push(format!("http://{}", actual));
-            lines_vec.push(format!("https://{}", actual));
+            // get string from line_unwrap to String
+            let l = format!("http://{}", line_unwrap.to_string());
+            let ls = format!("https://{}", line_unwrap.to_string());
+            lines_vec.push(l);
+            lines_vec.push(ls);
         }
     }
-    lines_vec
+    Rc::new(lines_vec)
 }
 
 fn check_for_stdin() {
@@ -111,8 +112,7 @@ async fn main() {
     let lines_vec = get_stdio_lines();
     http.state_ptr.total_requests = lines_vec.len() as u64;
 
-    let lines_vec2 = lines_vec.clone();
-    http.work(lines_vec2).await;
+    http.work(lines_vec).await;
 
     http.state_ptr.end_time = get_now();
 

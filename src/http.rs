@@ -18,6 +18,9 @@ DEALINGS IN THE SOFTWARE.
 Author(s): Volker Schwaberow
 */  
 
+
+use std::{rc::Rc, ops::Deref};
+
 use crate::getstate::GetState;
 #[derive(Debug, Clone, Copy)]
 pub struct Http {
@@ -39,15 +42,16 @@ impl Http {
     }
 
 
-    pub async fn work(&mut self, lines_vec: Vec<String>)  {  
+    pub async fn work(&mut self, lines_vec: Rc<Vec<String>>)  {  
 
         let mut tasks = Vec::new();
         let time = self.get_timeout();
+        let ptr = lines_vec.deref().clone();
 
-        for line in lines_vec {
+        for line in ptr  {
                 let task = tokio::spawn(async move {
                     let client = reqwest::Client::new();
-                    let url = line.clone();
+                    let url = line.to_string();
                     let res = client.get(line)
                         .timeout(std::time::Duration::from_secs(time))
                         .send().await;
