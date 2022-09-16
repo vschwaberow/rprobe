@@ -27,6 +27,8 @@ Options:
   -h, --help                    Print this help
   -v, --version                 Print version information
   -t, --timeout                 Set timeout in seconds (default: 10)
+  -n, --nohttp                  Do not probe http://
+  -N, --nohttps                 Do not probe https://
 ````
 
 ## Contribution 
