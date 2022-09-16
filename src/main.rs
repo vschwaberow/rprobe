@@ -32,7 +32,7 @@ fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
     chrono::NaiveDateTime::from_timestamp((time / 1000) as i64, 0)
 }
 
-fn get_stdio_lines() -> Rc<Vec<String>> {
+fn get_stdio_lines(nohttp: bool, nohttps: bool) -> Rc<Vec<String>> {
 
     let stdin = io::stdin();
     let lines = stdin.lock().lines();
@@ -44,8 +44,12 @@ fn get_stdio_lines() -> Rc<Vec<String>> {
         if line_unwrap.starts_with("https://") || line_unwrap.starts_with("http://") {
             lines_vec.push(line_unwrap);
         } else {
-            lines_vec.push(format!("http://{}", line_unwrap.to_string()));
-            lines_vec.push(format!("https://{}", line_unwrap.to_string()));
+            if !nohttp {
+                lines_vec.push(format!("http://{}", line_unwrap.to_string()));
+            }
+            if !nohttps {
+                lines_vec.push(format!("https://{}", line_unwrap.to_string()));
+            }
         }
     }
     Rc::new(lines_vec)
@@ -70,7 +74,7 @@ fn print_prg_info() {
     let prg_description = format!("{}", env!("CARGO_PKG_DESCRIPTION"));
     println!("{} {}", prg_info, prg_authors);
     println!("{}", prg_description);
-    println!("");
+    println!();
 }
 
 fn print_help() {
@@ -80,6 +84,8 @@ fn print_help() {
     println!("  -h, --help\t\t\tPrint this help");
     println!("  -v, --version\t\t\tPrint version information");
     println!("  -t, --timeout\t\t\tSet timeout in seconds (default: 10)");
+    println!("  -n, --nohttp\t\t\tDo not probe http://");
+    println!("  -N, --nohttps\t\t\tDo not probe https://");
     println!("");
 }
 
@@ -88,6 +94,8 @@ async fn main() {
 
     let mut tokio_state = GetState::new();
     let mut timeout = 10;
+    let mut nohttp = false;
+    let mut nohttps = false;
     check_for_stdin();
 
     let args: Vec<String> = env::args().collect();
@@ -95,25 +103,37 @@ async fn main() {
     for (index, arg) in args.iter().enumerate() {
         if arg == "-t" || arg == "--timeout" {
             timeout = args[index + 1].parse::<u64>().unwrap();
+        } else if arg == "-n" || arg == "--nohttp" {
+            nohttp = true;
+        } else if arg == "-N" || arg == "--nohttps" {
+            nohttps = true;
         } else if (arg == "-h" || arg == "--help") && args.len() == 2 {
             print_help();
             std::process::exit(0);
         } else if (arg == "-v" || arg == "--version") && args.len() == 2 {
             print_prg_info();
             std::process::exit(0);
+        } 
+
+        if nohttp && nohttps {
+            println!("Error: You can't use -n and -N at the same time");
+            println!();
+            print_help();
+            std::process::exit(0);
         }
+
     }
 
     tokio_state.start_time = get_now();
     let mut http = Http::new(timeout, tokio_state);
-    let lines_vec = get_stdio_lines();
+    let lines_vec = get_stdio_lines(nohttp, nohttps);
     http.state_ptr.total_requests = lines_vec.len() as u64;
 
     http.work(lines_vec).await;
 
     http.state_ptr.end_time = get_now();
 
-    println!("");
+    println!();
     println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", http.state_ptr.total_requests, get_human_readable_time(http.state_ptr.start_time), get_human_readable_time(http.state_ptr.end_time), http.state_ptr.end_time - http.state_ptr.start_time, http.state_ptr.successful_requests, http.state_ptr.failed_requests);
 
     
