@@ -1,8 +1,8 @@
 [package]
 name = "rprobe"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
-license = "MIT/Apache-2.0"
+license = "MIT"
 authors = ["Volker Schwaberow <volker@schwaberow.de>"]
 homepage = "https://github.com/vschwaberow/rprobe.git"
 repository = "https://github.com/vschwaberow/rprobe.git"
