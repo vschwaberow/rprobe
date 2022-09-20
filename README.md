@@ -29,6 +29,7 @@ Options:
   -t, --timeout                 Set timeout in seconds (default: 10)
   -n, --nohttp                  Do not probe http://
   -N, --nohttps                 Do not probe https://
+  -s, --suppress-stats          Suppress statistics
 ````
 
 ## Contribution 
