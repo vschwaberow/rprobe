@@ -86,6 +86,7 @@ fn print_help() {
     println!("  -t, --timeout\t\t\tSet timeout in seconds (default: 10)");
     println!("  -n, --nohttp\t\t\tDo not probe http://");
     println!("  -N, --nohttps\t\t\tDo not probe https://");
+    println!("  -s, --suppress-stats\t\tSuppress statistics");
     println!("");
 }
 
@@ -96,6 +97,7 @@ async fn main() {
     let mut timeout = 10;
     let mut nohttp = false;
     let mut nohttps = false;
+    let mut suppress_stats = false;
     check_for_stdin();
 
     let args: Vec<String> = env::args().collect();
@@ -107,13 +109,15 @@ async fn main() {
             nohttp = true;
         } else if arg == "-N" || arg == "--nohttps" {
             nohttps = true;
+        } else if arg == "-s" || arg == "--suppress-stats" {
+            suppress_stats = true;
         } else if (arg == "-h" || arg == "--help") && args.len() == 2 {
             print_help();
             std::process::exit(0);
         } else if (arg == "-v" || arg == "--version") && args.len() == 2 {
             print_prg_info();
             std::process::exit(0);
-        } 
+        }
 
         if nohttp && nohttps {
             println!("Error: You can't use -n and -N at the same time");
@@ -133,9 +137,10 @@ async fn main() {
 
     http.state_ptr.end_time = get_now();
 
-    println!();
-    println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", http.state_ptr.total_requests, get_human_readable_time(http.state_ptr.start_time), get_human_readable_time(http.state_ptr.end_time), http.state_ptr.end_time - http.state_ptr.start_time, http.state_ptr.successful_requests, http.state_ptr.failed_requests);
-
+    if !suppress_stats {
+        println!();
+        println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", http.state_ptr.total_requests, get_human_readable_time(http.state_ptr.start_time), get_human_readable_time(http.state_ptr.end_time), http.state_ptr.end_time - http.state_ptr.start_time, http.state_ptr.successful_requests, http.state_ptr.failed_requests);
+    }
     
 }
 
