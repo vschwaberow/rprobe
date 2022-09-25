@@ -1,6 +1,6 @@
 [package]
 name = "rprobe"
-version = "0.4.2"
+version = "0.5.0"
 edition = "2021"
 license = "MIT"
 authors = ["Volker Schwaberow <volker@schwaberow.de>"]
@@ -18,15 +18,9 @@ lto = true
 codegen-units = 1
 opt-level = "s"
 
-[dev-dependencies]
-criterion = "0.3"
-
-[[bench]]
-name = "rprobe_benchmark"
-harness = false
-
 [dependencies]
 atty = "0.2.14"
 chrono = "0.4.22"
+indicatif = "0.17.1"
 reqwest = "0.11.11"
 tokio = { version = "1.21.0", features = ["full"] }

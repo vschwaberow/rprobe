@@ -29,8 +29,19 @@ Options:
   -t, --timeout                 Set timeout in seconds (default: 10)
   -n, --nohttp                  Do not probe http://
   -N, --nohttps                 Do not probe https://
+  -S, --show-unresponsive       Show unresponsive hosts
   -s, --suppress-stats          Suppress statistics
+ -da, --detect-all              Run all detection plugins on hosts
+
 ````
+
+## Plugins
+
+With version 0.5.0 I introduced a plugin probe system which allows to interpretate the response of a probe in a custom way.
+
+Possible are fingerprints of the response body, the response code and the response headers. This allows to detect a lot of different services running on remote hosts. 
+
+A basic Apache plugin is included in the source code. You can find it in the `plugins` directory.
 
 ## Contribution 
 

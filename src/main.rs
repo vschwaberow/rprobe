@@ -18,40 +18,48 @@ DEALINGS IN THE SOFTWARE.
 Author(s): Volker Schwaberow
 */
 
+mod config;
 mod getstate;
 mod http;
+mod httpinner;
+mod plugins;
 
 use atty::Stream;
+use config::ConfigParameter;
 use getstate::GetState;
 use http::Http;
+use std::borrow::BorrowMut;
 use std::env;
-use std::rc::Rc;
 use std::io::{self, BufRead};
+use std::rc::Rc;
 
 fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
     chrono::NaiveDateTime::from_timestamp((time / 1000) as i64, 0)
 }
 
-fn get_stdio_lines(nohttp: bool, nohttps: bool) -> Rc<Vec<String>> {
-
+fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
     let stdin = io::stdin();
     let lines = stdin.lock().lines();
-
     let mut lines_vec = Vec::new();
-
-    for line in lines {
-        let line_unwrap = line.unwrap();
-        if line_unwrap.starts_with("https://") || line_unwrap.starts_with("http://") {
-            lines_vec.push(line_unwrap);
-        } else {
-            if !nohttp {
-                lines_vec.push(format!("http://{}", line_unwrap.to_string()));
-            }
-            if !nohttps {
-                lines_vec.push(format!("https://{}", line_unwrap.to_string()));
+    lines.into_iter().for_each(|line| match line {
+        Ok(line) => {
+            if line.starts_with("https://") || line.starts_with("http://") {
+                lines_vec.push(line);
+            } else {
+                if config_ptr.get_http() {
+                    lines_vec.push(format!("http://{}", line.to_string()));
+                }
+                if config_ptr.get_https() {
+                    lines_vec.push(format!("https://{}", line.to_string()));
+                }
             }
         }
-    }
+        Err(_) => {
+            dbg!();
+            println!("[!] Error reading line from stdin");
+            std::process::exit(1);
+        }
+    });
     Rc::new(lines_vec)
 }
 
@@ -64,8 +72,9 @@ fn check_for_stdin() {
 
 fn get_now() -> u64 {
     std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap().as_millis() as u64
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
 }
 
 fn print_prg_info() {
@@ -86,62 +95,103 @@ fn print_help() {
     println!("  -t, --timeout\t\t\tSet timeout in seconds (default: 10)");
     println!("  -n, --nohttp\t\t\tDo not probe http://");
     println!("  -N, --nohttps\t\t\tDo not probe https://");
+    println!("  -S, --show-unresponsive\tShow unresponsive hosts");
     println!("  -s, --suppress-stats\t\tSuppress statistics");
-    println!("");
+    println!(" -da, --detect-all\t\tRun all detection plugins on hosts");
+    println!();
 }
 
 #[tokio::main]
 async fn main() {
-
     let mut tokio_state = GetState::new();
-    let mut timeout = 10;
-    let mut nohttp = false;
-    let mut nohttps = false;
-    let mut suppress_stats = false;
+    let mut config_state = ConfigParameter::new();
+
     check_for_stdin();
 
     let args: Vec<String> = env::args().collect();
 
-    for (index, arg) in args.iter().enumerate() {
-        if arg == "-t" || arg == "--timeout" {
-            timeout = args[index + 1].parse::<u64>().unwrap();
-        } else if arg == "-n" || arg == "--nohttp" {
-            nohttp = true;
-        } else if arg == "-N" || arg == "--nohttps" {
-            nohttps = true;
-        } else if arg == "-s" || arg == "--suppress-stats" {
-            suppress_stats = true;
-        } else if (arg == "-h" || arg == "--help") && args.len() == 2 {
+    args.iter().for_each(|arg| match arg.as_str() {
+        "-h" | "--help" => {
             print_help();
             std::process::exit(0);
-        } else if (arg == "-v" || arg == "--version") && args.len() == 2 {
+        }
+        "-v" | "--version" => {
             print_prg_info();
             std::process::exit(0);
         }
-
-        if nohttp && nohttps {
-            println!("Error: You can't use -n and -N at the same time");
-            println!();
-            print_help();
-            std::process::exit(0);
+        "-t" | "--timeout" => {
+            let timeout = args
+                .get(args.iter().position(|r| r == arg).unwrap() + 1)
+                .unwrap();
+            config_state.set_timeout(timeout.parse::<u64>().unwrap());
         }
+        "-n" | "--nohttp" => {
+            config_state.set_http(false);
+        }
+        "-N" | "--nohttps" => {
+            config_state.set_https(false);
+        }
+        "-S" | "--show-unresponsive" => {
+            config_state.set_print_failed(true);
+        }
+        "-s" | "--suppress-stats" => {
+            config_state.set_suppress_stats(true);
+        }
+        "-da" | "--detect-all" => {
+            config_state.set_detect_all(true);
+        }
+        _ => {}
+    });
 
-    }
-
-    tokio_state.start_time = get_now();
-    let mut http = Http::new(timeout, tokio_state);
-    let lines_vec = get_stdio_lines(nohttp, nohttps);
-    http.state_ptr.total_requests = lines_vec.len() as u64;
-
-    http.work(lines_vec).await;
-
-    http.state_ptr.end_time = get_now();
-
-    if !suppress_stats {
+    if !config_state.get_http() && !config_state.get_https() {
+        println!("Error: You can't use -n and -N at the same time");
         println!();
-        println!("{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.", http.state_ptr.total_requests, get_human_readable_time(http.state_ptr.start_time), get_human_readable_time(http.state_ptr.end_time), http.state_ptr.end_time - http.state_ptr.start_time, http.state_ptr.successful_requests, http.state_ptr.failed_requests);
+        print_help();
+        std::process::exit(0);
     }
-    
+
+    tokio_state.set_start_time(get_now());
+    let mut http = Http::new(tokio_state, config_state);
+
+    let lines_vec = get_stdio_lines(&config_state);
+    http.state_ptr.set_total_requests(lines_vec.len() as u64);
+
+    let results = http.work(lines_vec).await;
+
+    http.state_ptr.set_end_time(get_now());
+
+    results.iter().for_each(|r| match r.get_success() {
+        true => {
+            if config_state.get_detect_all() {
+                let plugins = plugins::PluginHandler::new();
+                let scan_result = plugins.run(r);
+                if !scan_result.is_empty() {
+                    println!("{} {}", r.get_url(), scan_result);
+                } else {
+                    println!("{}", r.get_url());
+                }
+            } else {
+                println!("{}", r.get_url());
+            }
+        }
+        false => {
+            if config_state.get_print_failed() {
+                println!("{} - failed request.", r.get_url());
+            }
+        }
+    });
+
+    if !config_state.get_suppress_stats() {
+        let hbor = http.borrow_mut();
+        println!();
+        println!(
+            "{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.",
+            hbor.state_ptr.get_total_requests(),
+            get_human_readable_time(hbor.state_ptr.get_start_time()),
+            get_human_readable_time(hbor.state_ptr.get_end_time()),
+            hbor.state_ptr.get_end_time() - hbor.state_ptr.get_start_time(),
+            hbor.state_ptr.get_successful_requests(),
+            hbor.state_ptr.get_failed_requests()
+        );
+    }
 }
-
-
