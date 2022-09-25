@@ -20,11 +20,11 @@ Author(s): Volker Schwaberow
 
 #[derive(Debug, Clone, Copy)]
 pub struct GetState {
-    pub total_requests: u64,
-    pub successful_requests: usize,
-    pub failed_requests: usize,
-    pub start_time: u64,
-    pub end_time: u64,
+    total_requests: u64,
+    successful_requests: usize,
+    failed_requests: usize,
+    start_time: u64,
+    end_time: u64,
 }
 
 impl GetState {
@@ -44,5 +44,37 @@ impl GetState {
 
     pub fn add_failure(&mut self) {
         self.failed_requests += 1;
+    }
+
+    pub fn get_total_requests(&self) -> u64 {
+        self.total_requests
+    }
+
+    pub fn set_total_requests(&mut self, total_requests: u64) {
+        self.total_requests = total_requests;
+    }
+
+    pub fn get_successful_requests(&self) -> usize {
+        self.successful_requests
+    }
+
+    pub fn get_failed_requests(&self) -> usize {
+        self.failed_requests
+    }
+
+    pub fn set_start_time(&mut self, start_time: u64) {
+        self.start_time = start_time;
+    }
+
+    pub fn get_start_time(&self) -> u64 {
+        self.start_time
+    }
+
+    pub fn set_end_time(&mut self, end_time: u64) {
+        self.end_time = end_time;
+    }
+
+    pub fn get_end_time(&self) -> u64 {
+        self.end_time
     }
 }
