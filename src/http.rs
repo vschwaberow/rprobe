@@ -43,7 +43,7 @@ impl Http {
 
     pub async fn work(&mut self, lines_vec: Rc<Vec<String>>) -> Vec<HttpInner> {
         let mut tasks = Vec::new();
-        let time = self.config_ptr.get_timeout();
+        let time = self.config_ptr.timeout();
         let ptr = lines_vec.deref().clone();
 
         let pb = ProgressBar::new(lines_vec.len() as u64);
@@ -132,7 +132,7 @@ impl Http {
             match rval {
                 Ok(_) => {
                     let rvalu = rval.unwrap();
-                    match rvalu.get_success() {
+                    match rvalu.success() {
                         true => {
                             intv.tick().await;
 
@@ -146,7 +146,7 @@ impl Http {
 
                             pb.inc(1);
                             let empty = "".to_string();
-                            let url = rvalu.get_url().to_string();
+                            let url = rvalu.url().to_string();
                             let http_inner =
                                 HttpInner::new_with_all(HeaderMap::new(), empty, 0, url, false);
 

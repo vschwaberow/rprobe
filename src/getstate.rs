@@ -46,7 +46,7 @@ impl GetState {
         self.failed_requests += 1;
     }
 
-    pub fn get_total_requests(&self) -> u64 {
+    pub fn total_requests(&self) -> u64 {
         self.total_requests
     }
 
@@ -54,11 +54,11 @@ impl GetState {
         self.total_requests = total_requests;
     }
 
-    pub fn get_successful_requests(&self) -> usize {
+    pub fn successful_requests(&self) -> usize {
         self.successful_requests
     }
 
-    pub fn get_failed_requests(&self) -> usize {
+    pub fn failed_requests(&self) -> usize {
         self.failed_requests
     }
 
@@ -66,7 +66,7 @@ impl GetState {
         self.start_time = start_time;
     }
 
-    pub fn get_start_time(&self) -> u64 {
+    pub fn start_time(&self) -> u64 {
         self.start_time
     }
 
@@ -74,7 +74,7 @@ impl GetState {
         self.end_time = end_time;
     }
 
-    pub fn get_end_time(&self) -> u64 {
+    pub fn end_time(&self) -> u64 {
         self.end_time
     }
 }
