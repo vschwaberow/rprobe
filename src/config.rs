@@ -44,7 +44,7 @@ impl ConfigParameter {
         self.print_failed = print_failed;
     }
 
-    pub fn get_print_failed(&self) -> bool {
+    pub fn print_failed(&self) -> bool {
         self.print_failed
     }
 
@@ -52,7 +52,7 @@ impl ConfigParameter {
         self.detect_all = detect_all;
     }
 
-    pub fn get_detect_all(&self) -> bool {
+    pub fn detect_all(&self) -> bool {
         self.detect_all
     }
 
@@ -60,7 +60,7 @@ impl ConfigParameter {
         self.http = http;
     }
 
-    pub fn get_http(&self) -> bool {
+    pub fn http(&self) -> bool {
         self.http
     }
 
@@ -68,7 +68,7 @@ impl ConfigParameter {
         self.https = https;
     }
 
-    pub fn get_https(&self) -> bool {
+    pub fn https(&self) -> bool {
         self.https
     }
 
@@ -76,11 +76,11 @@ impl ConfigParameter {
         self.timeout = timeout;
     }
 
-    pub fn get_timeout(&self) -> u64 {
+    pub fn timeout(&self) -> u64 {
         self.timeout
     }
 
-    pub fn get_suppress_stats(&self) -> bool {
+    pub fn suppress_stats(&self) -> bool {
         self.suppress_stats
     }
 

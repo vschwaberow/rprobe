@@ -46,10 +46,10 @@ fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
             if line.starts_with("https://") || line.starts_with("http://") {
                 lines_vec.push(line);
             } else {
-                if config_ptr.get_http() {
+                if config_ptr.http() {
                     lines_vec.push(format!("http://{}", line.to_string()));
                 }
-                if config_ptr.get_https() {
+                if config_ptr.https() {
                     lines_vec.push(format!("https://{}", line.to_string()));
                 }
             }
@@ -143,7 +143,7 @@ async fn main() {
         _ => {}
     });
 
-    if !config_state.get_http() && !config_state.get_https() {
+    if !config_state.http() && !config_state.https() {
         println!("Error: You can't use -n and -N at the same time");
         println!();
         print_help();
@@ -160,38 +160,38 @@ async fn main() {
 
     http.state_ptr.set_end_time(get_now());
 
-    results.iter().for_each(|r| match r.get_success() {
+    results.iter().for_each(|r| match r.success() {
         true => {
-            if config_state.get_detect_all() {
+            if config_state.detect_all() {
                 let plugins = plugins::PluginHandler::new();
                 let scan_result = plugins.run(r);
                 if !scan_result.is_empty() {
-                    println!("{} {}", r.get_url(), scan_result);
+                    println!("{} {}", r.url(), scan_result);
                 } else {
-                    println!("{}", r.get_url());
+                    println!("{}", r.url());
                 }
             } else {
-                println!("{}", r.get_url());
+                println!("{}", r.url());
             }
         }
         false => {
-            if config_state.get_print_failed() {
-                println!("{} - failed request.", r.get_url());
+            if config_state.print_failed() {
+                println!("{} - failed request.", r.url());
             }
         }
     });
 
-    if !config_state.get_suppress_stats() {
+    if !config_state.suppress_stats() {
         let hbor = http.borrow_mut();
         println!();
         println!(
             "{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.",
-            hbor.state_ptr.get_total_requests(),
-            get_human_readable_time(hbor.state_ptr.get_start_time()),
-            get_human_readable_time(hbor.state_ptr.get_end_time()),
-            hbor.state_ptr.get_end_time() - hbor.state_ptr.get_start_time(),
-            hbor.state_ptr.get_successful_requests(),
-            hbor.state_ptr.get_failed_requests()
+            hbor.state_ptr.total_requests(),
+            get_human_readable_time(hbor.state_ptr.start_time()),
+            get_human_readable_time(hbor.state_ptr.end_time()),
+            hbor.state_ptr.end_time() - hbor.state_ptr.start_time(),
+            hbor.state_ptr.successful_requests(),
+            hbor.state_ptr.failed_requests()
         );
     }
 }

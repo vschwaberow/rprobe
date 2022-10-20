@@ -30,23 +30,23 @@ pub struct HttpInner {
 }
 
 impl HttpInner {
-    pub fn get_body(&self) -> &str {
+    pub fn body(&self) -> &str {
         &self.body
     }
 
-    pub fn get_headers(&self) -> &HeaderMap {
+    pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
-    pub fn get_status(&self) -> u16 {
+    pub fn status(&self) -> u16 {
         self.status
     }
 
-    pub fn get_success(&self) -> bool {
+    pub fn success(&self) -> bool {
         self.success
     }
 
-    pub fn get_url(&self) -> &str {
+    pub fn url(&self) -> &str {
         &self.url
     }
 

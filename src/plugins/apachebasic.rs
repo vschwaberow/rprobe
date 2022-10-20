@@ -52,7 +52,7 @@ impl Plugin for ApacheBasicPlugin {
 
         let value = sig.get("APACHE_BASIC").unwrap();
         value.iter().for_each(|x| {
-            if http_inner.get_body().contains(x) {
+            if http_inner.body().contains(x) {
                 found.push("APACHE_BASIC".to_string());
             }
         });
