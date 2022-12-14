@@ -23,8 +23,8 @@ pub struct GetState {
     total_requests: u64,
     successful_requests: usize,
     failed_requests: usize,
-    start_time: u64,
-    end_time: u64,
+    start_time: i64,
+    end_time: i64,
 }
 
 impl GetState {
@@ -62,19 +62,19 @@ impl GetState {
         self.failed_requests
     }
 
-    pub fn set_start_time(&mut self, start_time: u64) {
+    pub fn set_start_time(&mut self, start_time: i64) {
         self.start_time = start_time;
     }
 
-    pub fn start_time(&self) -> u64 {
+    pub fn start_time(&self) -> i64 {
         self.start_time
     }
 
-    pub fn set_end_time(&mut self, end_time: u64) {
+    pub fn set_end_time(&mut self, end_time: i64) {
         self.end_time = end_time;
     }
 
-    pub fn end_time(&self) -> u64 {
+    pub fn end_time(&self) -> i64 {
         self.end_time
     }
 }

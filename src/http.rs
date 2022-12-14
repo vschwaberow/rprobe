@@ -42,7 +42,7 @@ impl Http {
         }
     }
 
-    pub async fn work(&mut self, lines_hash: Rc<HashMap<String, ()>>) -> Vec<HttpInner> {
+    pub async fn work(&mut self, lines_hash: Rc<HashMap<usize, String>>) -> Vec<HttpInner> {
         let mut tasks = Vec::new();
         let time = self.config_ptr.timeout();
         let ptr = lines_hash.deref().clone();
@@ -65,7 +65,7 @@ impl Http {
             let task = tokio::spawn(async move {
                 let client = reqwest::Client::new();
                 let res = client
-                    .get(line)
+                    .get(line.1)
                     .timeout(std::time::Duration::from_secs(time))
                     .send()
                     .await;

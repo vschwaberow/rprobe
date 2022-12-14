@@ -163,7 +163,7 @@ async fn main() {
         std::process::exit(0);
     }
 
-    tokio_state.set_start_time(get_now());
+    tokio_state.set_start_time(get_now().try_into().unwrap());
     let mut http = Http::new(tokio_state, config_state);
 
     let lines = get_stdio_lines(&config_state);
@@ -171,7 +171,7 @@ async fn main() {
 
     let results = http.work(lines).await;
 
-    http.state_ptr.set_end_time(get_now());
+    http.state_ptr.set_end_time(get_now().try_into().unwrap());
 
     results.iter().for_each(|r| match r.success() {
         true => {
