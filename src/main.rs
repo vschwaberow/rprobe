@@ -44,10 +44,11 @@ fn get_human_readable_time(time: i64) -> chrono::NaiveDateTime {
     ).unwrap()
 }
 
-fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<HashMap<String, ()>> {
+fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<HashMap<usize, String>> {
     let stdin = io::stdin();
     let mut map = HashMap::new();
     let mut lines = stdin.lock().lines();
+    let mut counter = 1;
 
     while let Some(line) = lines.next() {
         let line = match line {
@@ -59,15 +60,17 @@ fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<HashMap<String, ()>> {
         };
 
         if line.starts_with("https://") || line.starts_with("http://") {
-            map.insert(line, ());
+            map.insert(counter, line);
         } else {
             if config_ptr.http() {
-                map.insert(format!("http://{}", line), ());
+                map.insert(counter, format!("http://{}", line));
             }
             if config_ptr.https() {
-                map.insert(format!("https://{}", line), ());
+                map.insert(counter, format!("https://{}", line));
             }
         }
+
+        counter += 1;
     }
 
     Rc::new(map)
@@ -164,7 +167,7 @@ async fn main() {
     let mut http = Http::new(tokio_state, config_state);
 
     let lines = get_stdio_lines(&config_state);
-    http.state_ptr.set_total_requests(lines_vec.len() as u64);
+    http.state_ptr.set_total_requests(lines.len() as u64);
 
     let results = http.work(lines).await;
 

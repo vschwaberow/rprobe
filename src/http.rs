@@ -42,7 +42,7 @@ impl Http {
         }
     }
 
-    pub async fn work(&mut self, lines_hash: Rc<HashMap<String>>) -> Vec<HttpInner> {
+    pub async fn work(&mut self, lines_hash: Rc<HashMap<String, ()>>) -> Vec<HttpInner> {
         let mut tasks = Vec::new();
         let time = self.config_ptr.timeout();
         let ptr = lines_hash.deref().clone();
