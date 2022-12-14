@@ -44,7 +44,6 @@ fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
         let line = match line {
             Ok(line) => line,
             Err(_) => {
-                dbg!();
                 println!("[!] Error reading line from stdin");
                 std::process::exit(1);
             }
