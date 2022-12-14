@@ -32,6 +32,8 @@ use std::borrow::BorrowMut;
 use std::env;
 use std::io::{self, BufRead};
 use std::rc::Rc;
+use hashbrown::HashMap;
+
 
 fn get_human_readable_time(time: i64) -> chrono::NaiveDateTime {
     chrono::NaiveDateTime::from_timestamp_opt(time / 1000, 0).ok_or_else(
@@ -42,10 +44,12 @@ fn get_human_readable_time(time: i64) -> chrono::NaiveDateTime {
     ).unwrap()
 }
 
-fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
+fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<HashMap<String, ()>> {
     let stdin = io::stdin();
-    let mut lines_vec = Vec::new();
-    for line in stdin.lock().lines() {
+    let mut map = HashMap::new();
+    let mut lines = stdin.lock().lines();
+
+    while let Some(line) = lines.next() {
         let line = match line {
             Ok(line) => line,
             Err(_) => {
@@ -55,18 +59,18 @@ fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
         };
 
         if line.starts_with("https://") || line.starts_with("http://") {
-            lines_vec.push(line);
+            map.insert(line, ());
         } else {
             if config_ptr.http() {
-                lines_vec.push(format!("http://{}", line));
+                map.insert(format!("http://{}", line), ());
             }
             if config_ptr.https() {
-                lines_vec.push(format!("https://{}", line));
+                map.insert(format!("https://{}", line), ());
             }
         }
     }
 
-    Rc::new(lines_vec)
+    Rc::new(map)
 }
 
 fn check_for_stdin() {
