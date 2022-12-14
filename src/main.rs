@@ -33,6 +33,23 @@ use std::env;
 use std::io::{self, BufRead};
 use std::rc::Rc;
 use hashbrown::HashMap;
+use clap::{AppSettings, Clap};
+
+#[derive(Debug, Clap)]
+struct Opts {
+    #[clap(short, long)]
+    print_failed: bool,
+    #[clap(short, long)]
+    detect_all: bool,
+    #[clap(short, long)]
+    http: bool,
+    #[clap(short, long)]
+    https: bool,
+    #[clap(short, long)]
+    timeout: Option<u64>,
+    #[clap(short, long)]
+    suppress_stats: bool,
+}
 
 
 fn get_human_readable_time(time: i64) -> chrono::NaiveDateTime {
