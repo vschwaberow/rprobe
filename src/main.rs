@@ -33,8 +33,13 @@ use std::env;
 use std::io::{self, BufRead};
 use std::rc::Rc;
 
-fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
-    chrono::NaiveDateTime::from_timestamp((time / 1000) as i64, 0)
+fn get_human_readable_time(time: i64) -> chrono::NaiveDateTime {
+    chrono::NaiveDateTime::from_timestamp_opt(time / 1000, 0).ok_or_else(
+        || {
+            println!("[!] Error converting time to human readable format");
+            std::process::exit(1);
+        },
+    ).unwrap()
 }
 
 fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
