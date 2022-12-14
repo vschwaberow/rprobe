@@ -39,27 +39,29 @@ fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
 
 fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
     let stdin = io::stdin();
-    let lines = stdin.lock().lines();
     let mut lines_vec = Vec::new();
-    lines.into_iter().for_each(|line| match line {
-        Ok(line) => {
-            if line.starts_with("https://") || line.starts_with("http://") {
-                lines_vec.push(line);
-            } else {
-                if config_ptr.http() {
-                    lines_vec.push(format!("http://{}", line.to_string()));
-                }
-                if config_ptr.https() {
-                    lines_vec.push(format!("https://{}", line.to_string()));
-                }
+    for line in stdin.lock().lines() {
+        let line = match line {
+            Ok(line) => line,
+            Err(_) => {
+                dbg!();
+                println!("[!] Error reading line from stdin");
+                std::process::exit(1);
+            }
+        };
+
+        if line.starts_with("https://") || line.starts_with("http://") {
+            lines_vec.push(line);
+        } else {
+            if config_ptr.http() {
+                lines_vec.push(format!("http://{}", line));
+            }
+            if config_ptr.https() {
+                lines_vec.push(format!("https://{}", line));
             }
         }
-        Err(_) => {
-            dbg!();
-            println!("[!] Error reading line from stdin");
-            std::process::exit(1);
-        }
-    });
+    }
+
     Rc::new(lines_vec)
 }
 
