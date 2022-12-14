@@ -163,10 +163,10 @@ async fn main() {
     tokio_state.set_start_time(get_now());
     let mut http = Http::new(tokio_state, config_state);
 
-    let lines_vec = get_stdio_lines(&config_state);
+    let lines = get_stdio_lines(&config_state);
     http.state_ptr.set_total_requests(lines_vec.len() as u64);
 
-    let results = http.work(lines_vec).await;
+    let results = http.work(lines).await;
 
     http.state_ptr.set_end_time(get_now());
 

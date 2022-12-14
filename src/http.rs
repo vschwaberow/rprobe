@@ -21,6 +21,7 @@ Author(s): Volker Schwaberow
 use crate::config::ConfigParameter;
 use crate::getstate::GetState;
 use crate::httpinner::HttpInner;
+use hashbrown::HashMap;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use reqwest::header::HeaderMap;
 use std::fmt::Write;
@@ -41,12 +42,12 @@ impl Http {
         }
     }
 
-    pub async fn work(&mut self, lines_vec: Rc<Vec<String>>) -> Vec<HttpInner> {
+    pub async fn work(&mut self, lines_hash: Rc<HashMap<String>>) -> Vec<HttpInner> {
         let mut tasks = Vec::new();
         let time = self.config_ptr.timeout();
-        let ptr = lines_vec.deref().clone();
+        let ptr = lines_hash.deref().clone();
 
-        let pb = ProgressBar::new(lines_vec.len() as u64);
+        let pb = ProgressBar::new(lines_hash.len() as u64);
         pb.set_style(
             ProgressStyle::with_template(
                 "[{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} ({eta})",
