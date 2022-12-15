@@ -84,6 +84,16 @@ impl ApacheBasicPlugin {
                 "This IP is being shared among many domains.",
             ],
         );
+        sig.insert(
+            "APACHE_HEADER".to_string(),
+            vec![
+                "Apache",
+                "Apache HTTP Server",
+                "mod_ssl",
+                "Apache-Coyote",
+                "X-Powered-By: PHP",
+            ],
+        );
         sig
     }
     
