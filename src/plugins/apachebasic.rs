@@ -20,8 +20,9 @@ Author(s): Volker Schwaberow
 
 use crate::httpinner::HttpInner;
 use crate::plugins::Plugin;
-use fxhash::FxHasher64;
+use fxhash::{FxHasher64, FxHasher};
 use hashbrown::HashMap;
+use regex::Regex;
 
 const NAME: &str = "apache_basic";
 const DESCRIPTION: &str = "This plugin detects basic Apache web servers";
@@ -58,18 +59,11 @@ impl Plugin for ApacheBasicPlugin {
         let mut found: Vec<String> = Vec::new();
         let mut signature = HashMap::with_hasher(FxHasher64::default());
     
-        // let value = sig.get("APACHE_BASIC").unwrap();
-        // value.iter().for_each(|x| {
-        //     if http_inner.body().contains(x) {
-        //         found.push("APACHE_BASIC".to_string());
-        //     }
-        // });
-        let value = sig.get("APACHE_BASIC2").unwrap_or("");
+        let value = sig.get(APACHE_BASIC2).unwrap();
         value.iter().for_each(|x| {
             let re = Regex::new(x).unwrap();
             signature.insert(x, "APACHE_BASIC");
-            let server_header = http_inner.headers().get("Server").unwrap_or("");
-            let hash = FxHasher64::hash(server_header);
+            let server_header = http_inner.headers().get("Server").unwrap();
             if sig.contains_key(&hash) {
                 found.push(sig.get(&hash).unwrap().to_string());
             }
@@ -84,27 +78,19 @@ impl Plugin for ApacheBasicPlugin {
 
 impl ApacheBasicPlugin {
 
-    pub fn add_signatures(&self) -> HashMap<String, Vec<&str>> {
-        let mut sig = HashMap::new();
-    
-        sig.insert(
-            "APACHE_BASIC", 
-            vec![
-                r"^Apache/(\d+\.\d+\.\d+)$", "APACHE_BASIC",
-                r"^PHP/(\d+\.\d+\.\d+)$",
-                r"^mod_ssl$",
-            ]);
-        sig.insert(
-            "APACHE_BASIC2",
-            vec![
-                "<html><body><h1>It works!</h1></body></html>",
-                "<html>Apache is functioning normally</html>",
-                "<body><center>This IP is being shared among many domains.<br>\nTo view the domain you are looking for, simply enter the domain name in the location bar of your web browser.<br>",
-                "<html><head><title>Apache2 Ubuntu Default Page: It works</title></head>",
-                "This IP is being shared among many domains.",
-            ],
-        );
-        sig
+    pub fn add_signatures(&self) -> HashMap<u64, Vec<&str>> {
+        let signatures = [
+            (r"^Apache/(\d+\.\d+\.\d+)$", "APACHE_BASIC"),
+            (r"^PHP/(\d+\.\d+\.\d+)$", "PHP"),
+            (r"^mod_ssl$", "MOD_SSL"),
+        ];
+        let mut hash_signatures = HashMap::with_hasher(FxHasher64::default());
+        for (re, name) in signatures.iter() {
+            let re = Regex::new(re).unwrap();
+            let hash = FxHasher::hash(re.as_str());
+            hash_signatures.insert(hash, name);
+        }
+        hash_signatures
     }
     
 
