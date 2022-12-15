@@ -22,27 +22,33 @@ use crate::httpinner::HttpInner;
 use crate::plugins::Plugin;
 use std::collections::HashMap;
 
+const NAME: &str = "apache_basic";
+const DESCRIPTION: &str = "This plugin detects basic Apache web servers";
+const VERSION: &str = "0.1.0";
+const AUTHOR: &str = "Volker Schwaberow";   
+const LICENSE: &str = "MIT";
+
 pub struct ApacheBasicPlugin {}
 
 impl Plugin for ApacheBasicPlugin {
-    fn name(&self) -> String {
-        "apache_basic".to_string()
+    fn name(&self) -> &str {
+        NAME
     }
 
-    fn description(&self) -> String {
-        "This plugin detects basic Apache web servers".to_string()
+    fn description(&self) -> &str {
+        DESCRIPTION
     }
 
-    fn version(&self) -> String {
-        "0.1.0".to_string()
+    fn version(&self) -> &str {
+        VERSION
     }
 
-    fn author(&self) -> String {
-        "Volker Schwaberow".to_string()
+    fn author(&self) -> &str {
+        AUTHOR
     }
 
-    fn license(&self) -> String {
-        "MIT".to_string()
+    fn license(&self) -> &str {
+        LICENSE
     }
 
     fn run(&self, http_inner: &HttpInner) -> String {

@@ -24,11 +24,11 @@ pub mod apachebasic;
 use crate::httpinner::HttpInner;
 
 pub trait Plugin {
-    fn name(&self) -> String;
-    fn description(&self) -> String;
-    fn version(&self) -> String;
-    fn author(&self) -> String;
-    fn license(&self) -> String;
+    fn name(&self) -> &str;
+    fn description(&self) -> &str;
+    fn version(&self) -> &str;
+    fn author(&self) -> &str;
+    fn license(&self) -> &str;
     fn run(&self, http_inner: &HttpInner) -> String;
 }
 
