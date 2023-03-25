@@ -20,7 +20,14 @@ use std::io::{self, BufRead};
 use std::rc::Rc;
 
 fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
-    chrono::NaiveDateTime::from_timestamp((time / 1000) as i64, 0)
+    let dt = chrono::NaiveDateTime::from_timestamp_opt((time/1000) as i64, 0);
+    match dt {
+        Some(dt) => dt,
+        None => {
+            println!("Error: Could not convert time");
+            std::process::exit(1);
+        }
+    }
 }
 
 fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
