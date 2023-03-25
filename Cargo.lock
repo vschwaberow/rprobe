@@ -786,7 +786,7 @@ dependencies = [
 
 [[package]]
 name = "rprobe"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "atty",
  "chrono",
