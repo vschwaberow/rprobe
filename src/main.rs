@@ -14,13 +14,12 @@ use atty::Stream;
 use config::ConfigParameter;
 use getstate::GetState;
 use http::Http;
-use std::borrow::BorrowMut;
 use std::env;
 use std::io::{self, BufRead};
 use std::rc::Rc;
 
 fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
-    let dt = chrono::NaiveDateTime::from_timestamp_opt((time/1000) as i64, 0);
+    let dt = chrono::NaiveDateTime::from_timestamp_opt((time / 1000) as i64, 0);
     match dt {
         Some(dt) => dt,
         None => {
@@ -30,30 +29,35 @@ fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
     }
 }
 
+use std::collections::VecDeque;
+
 fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
     let stdin = io::stdin();
     let lines = stdin.lock().lines();
-    let mut lines_vec = Vec::new();
-    lines.into_iter().for_each(|line| match line {
-        Ok(line) => {
-            if line.starts_with("https://") || line.starts_with("http://") {
-                lines_vec.push(line);
-            } else {
-                if config_ptr.http() {
-                    lines_vec.push(format!("http://{}", line.to_string()));
+    let mut lines_deque = VecDeque::new();
+    for line in lines {
+        let line = match line {
+            Ok(line) => line,
+            Err(_) => {
+                println!("[!] Error reading line from stdin");
+                std::process::exit(1);
+            }
+        };
+        if line.starts_with("https://") || line.starts_with("http://") {
+            lines_deque.push_back(line);
+        } else {
+            match (config_ptr.http(), config_ptr.https()) {
+                (true, true) => {
+                    lines_deque.push_back(format!("http://{}", line));
+                    lines_deque.push_back(format!("https://{}", line));
                 }
-                if config_ptr.https() {
-                    lines_vec.push(format!("https://{}", line.to_string()));
-                }
+                (true, false) => lines_deque.push_back(format!("http://{}", line)),
+                (false, true) => lines_deque.push_back(format!("https://{}", line)),
+                (false, false) => (),
             }
         }
-        Err(_) => {
-            dbg!();
-            println!("[!] Error reading line from stdin");
-            std::process::exit(1);
-        }
-    });
-    Rc::new(lines_vec)
+    }
+    Rc::new(lines_deque.into_iter().collect())
 }
 
 fn check_for_stdin() {
@@ -91,6 +95,7 @@ fn print_help() {
     println!("  -S, --show-unresponsive\tShow unresponsive hosts");
     println!("  -s, --suppress-stats\t\tSuppress statistics");
     println!(" -da, --detect-all\t\tRun all detection plugins on hosts");
+    println!("  -p, --plugins\t\t\tList available plugins");
     println!();
 }
 
@@ -132,6 +137,13 @@ async fn main() {
         }
         "-da" | "--detect-all" => {
             config_state.set_detect_all(true);
+        }
+        "-p" | "--plugins" => {
+            let plugins = plugins::PluginHandler::new();
+            let l = plugins.list();
+            println!("Available plugins:");
+            l.iter().for_each(|p| println!("  {}", p));
+            std::process::exit(0);
         }
         _ => {}
     });
@@ -175,16 +187,15 @@ async fn main() {
     });
 
     if !config_state.suppress_stats() {
-        let hbor = http.borrow_mut();
-        println!();
+        let h = &mut http;
         println!(
             "{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.",
-            hbor.state_ptr.total_requests(),
-            get_human_readable_time(hbor.state_ptr.start_time()),
-            get_human_readable_time(hbor.state_ptr.end_time()),
-            hbor.state_ptr.end_time() - hbor.state_ptr.start_time(),
-            hbor.state_ptr.successful_requests(),
-            hbor.state_ptr.failed_requests()
+            h.state_ptr.total_requests(),
+            get_human_readable_time(h.state_ptr.start_time()),
+            get_human_readable_time(h.state_ptr.end_time()),
+            h.state_ptr.end_time() - h.state_ptr.start_time(),
+            h.state_ptr.successful_requests(),
+            h.state_ptr.failed_requests()
         );
     }
 }

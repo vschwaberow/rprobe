@@ -62,7 +62,6 @@ impl Http {
                         let status = myresp.status().as_u16();
                         let headers = myresp.headers().clone();
                         let body = myresp.text().await;
-                        //        let mut http_inner = HttpInner::new();
 
                         match body {
                             Ok(_) => {
