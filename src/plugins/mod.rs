@@ -3,7 +3,6 @@
 // Copyright (c) 2023
 // - Volker Schwaberow <volker@schwaberow.de>
 
-
 #![allow(dead_code)]
 pub mod apachebasic;
 
@@ -52,7 +51,7 @@ impl PluginHandler {
     pub fn run(&self, http_inner: &HttpInner) -> String {
         let mut complete = String::new();
         for plugin in &self.plugins {
-            let output = plugin.run(&http_inner);
+            let output = plugin.run(http_inner);
             complete.push_str(&format!("{} ", output));
         }
         complete

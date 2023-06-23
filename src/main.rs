@@ -3,7 +3,6 @@
 // Copyright (c) 2023
 // - Volker Schwaberow <volker@schwaberow.de>
 
-
 mod config;
 mod getstate;
 mod http;
@@ -77,7 +76,7 @@ fn get_now() -> u64 {
 fn print_prg_info() {
     let prg_info = format!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     let prg_authors = format!("(c) 2022 by {}", env!("CARGO_PKG_AUTHORS"));
-    let prg_description = format!("{}", env!("CARGO_PKG_DESCRIPTION"));
+    let prg_description = env!("CARGO_PKG_DESCRIPTION").to_string();
     println!("{} {}", prg_info, prg_authors);
     println!("{}", prg_description);
     println!();
@@ -100,7 +99,7 @@ fn print_help() {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut tokio_state = GetState::new();
     let mut config_state = ConfigParameter::new();
 
@@ -198,4 +197,5 @@ async fn main() {
             h.state_ptr.failed_requests()
         );
     }
+    Ok(())
 }

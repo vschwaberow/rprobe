@@ -3,7 +3,6 @@
 // Copyright (c) 2023
 // - Volker Schwaberow <volker@schwaberow.de>
 
-
 use crate::config::ConfigParameter;
 use crate::getstate::GetState;
 use crate::httpinner::HttpInner;
@@ -64,16 +63,16 @@ impl Http {
                         let body = myresp.text().await;
 
                         match body {
-                            Ok(_) => {
-                                let body = body.unwrap().to_string();
-                                return HttpInner::new_with_all(headers, body, status, url, true);
-                            }
+                            Ok(_) => HttpInner::new_with_all(
+                                headers,
+                                body.unwrap_or_default(),
+                                status,
+                                url,
+                                true,
+                            ),
                             Err(_) => {
                                 let body = "".to_string();
-                                let http_inner =
-                                    HttpInner::new_with_all(headers, body, status, url, false);
-
-                                return http_inner;
+                                HttpInner::new_with_all(headers, body, status, url, false)
                             }
                         }
                     }
@@ -89,21 +88,14 @@ impl Http {
                                 status_code = status;
                             }
                             None => {
-                                status_code = 0 as u16;
+                                status_code = 0;
                             }
                         }
                         let det_status = status_code;
                         let url = myresp.url().unwrap().as_str().to_string();
                         let empty = "".to_string();
 
-                        let http_inner = HttpInner::new_with_all(
-                            HeaderMap::new(),
-                            empty,
-                            det_status,
-                            url,
-                            false,
-                        );
-                        return http_inner;
+                        HttpInner::new_with_all(HeaderMap::new(), empty, det_status, url, false)
                     }
                 }
             });
@@ -114,33 +106,26 @@ impl Http {
 
         for task in tasks {
             let rval = task.await;
-            match rval {
-                Ok(_) => {
-                    let rvalu = rval.unwrap();
-                    match rvalu.success() {
-                        true => {
-                            intv.tick().await;
+            if let Ok(rvalu) = rval {
+                if rvalu.success() {
+                    intv.tick().await;
 
-                            pb.inc(1);
-                            let http_inner = rvalu;
-                            http_vec.push(http_inner);
-                            self.state_ptr.add_success();
-                        }
-                        false => {
-                            intv.tick().await;
+                    pb.inc(1);
+                    let http_inner = rvalu;
+                    http_vec.push(http_inner);
+                    self.state_ptr.add_success();
+                } else {
+                    intv.tick().await;
 
-                            pb.inc(1);
-                            let empty = "".to_string();
-                            let url = rvalu.url().to_string();
-                            let http_inner =
-                                HttpInner::new_with_all(HeaderMap::new(), empty, 0, url, false);
+                    pb.inc(1);
+                    let empty = "".to_string();
+                    let url = rvalu.url().to_string();
+                    let http_inner =
+                        HttpInner::new_with_all(HeaderMap::new(), empty, 0, url, false);
 
-                            http_vec.push(http_inner);
-                            self.state_ptr.add_failure();
-                        }
-                    }
+                    http_vec.push(http_inner);
+                    self.state_ptr.add_failure();
                 }
-                Err(_) => {}
             }
         }
         pb.finish();
