@@ -25,10 +25,12 @@ impl GetState {
 
     pub fn add_success(&mut self) {
         self.successful_requests += 1;
+        self.total_requests += 1;
     }
 
     pub fn add_failure(&mut self) {
         self.failed_requests += 1;
+        self.total_requests += 1;
     }
 
     pub fn total_requests(&self) -> u64 {
