@@ -18,14 +18,8 @@ use std::io::{self, BufRead};
 use std::rc::Rc;
 
 fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
-    let dt = chrono::NaiveDateTime::from_timestamp_opt((time / 1000) as i64, 0);
-    match dt {
-        Some(dt) => dt,
-        None => {
-            println!("Error: Could not convert time");
-            std::process::exit(1);
-        }
-    }
+    chrono::NaiveDateTime::from_timestamp_opt((time / 1000) as i64, 0)
+        .expect("Error: Could not convert time")
 }
 
 use std::collections::VecDeque;
@@ -38,7 +32,7 @@ fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
         let line = match line {
             Ok(line) => line,
             Err(_) => {
-                println!("[!] Error reading line from stdin");
+                eprintln!("[!] Error reading line from stdin");
                 std::process::exit(1);
             }
         };
@@ -107,48 +101,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = env::args().collect();
 
-    args.iter().for_each(|arg| match arg.as_str() {
-        "-h" | "--help" => {
-            print_help();
-            std::process::exit(0);
+    for (i, arg) in args.iter().enumerate() {
+        match arg.as_str() {
+            "-h" | "--help" => {
+                print_help();
+                std::process::exit(0);
+            }
+            "-v" | "--version" => {
+                print_prg_info();
+                std::process::exit(0);
+            }
+            "-t" | "--timeout" => {
+                if let Some(timeout) = args.get(i + 1) {
+                    config_state.set_timeout(timeout.parse::<u64>().unwrap());
+                }
+            }
+            "-n" | "--nohttp" => {
+                config_state.set_http(false);
+            }
+            "-N" | "--nohttps" => {
+                config_state.set_https(false);
+            }
+            "-S" | "--show-unresponsive" => {
+                config_state.set_print_failed(true);
+            }
+            "-s" | "--suppress-stats" => {
+                config_state.set_suppress_stats(true);
+            }
+            "-da" | "--detect-all" => {
+                config_state.set_detect_all(true);
+            }
+            "-p" | "--plugins" => {
+                let plugins = plugins::PluginHandler::new();
+                let l = plugins.list();
+                println!("Available plugins:");
+                l.iter().for_each(|p| println!("  {}", p));
+                std::process::exit(0);
+            }
+            _ => {}
         }
-        "-v" | "--version" => {
-            print_prg_info();
-            std::process::exit(0);
-        }
-        "-t" | "--timeout" => {
-            let timeout = args
-                .get(args.iter().position(|r| r == arg).unwrap() + 1)
-                .unwrap();
-            config_state.set_timeout(timeout.parse::<u64>().unwrap());
-        }
-        "-n" | "--nohttp" => {
-            config_state.set_http(false);
-        }
-        "-N" | "--nohttps" => {
-            config_state.set_https(false);
-        }
-        "-S" | "--show-unresponsive" => {
-            config_state.set_print_failed(true);
-        }
-        "-s" | "--suppress-stats" => {
-            config_state.set_suppress_stats(true);
-        }
-        "-da" | "--detect-all" => {
-            config_state.set_detect_all(true);
-        }
-        "-p" | "--plugins" => {
-            let plugins = plugins::PluginHandler::new();
-            let l = plugins.list();
-            println!("Available plugins:");
-            l.iter().for_each(|p| println!("  {}", p));
-            std::process::exit(0);
-        }
-        _ => {}
-    });
+    }
 
     if !config_state.http() && !config_state.https() {
-        println!("Error: You can't use -n and -N at the same time");
+        eprintln!("Error: You can't use -n and -N at the same time");
         println!();
         print_help();
         std::process::exit(0);
@@ -164,11 +159,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     http.state_ptr.set_end_time(get_now());
 
-    results.iter().for_each(|r| match r.success() {
-        true => {
+    for r in results {
+        if r.success() {
             if config_state.detect_all() {
                 let plugins = plugins::PluginHandler::new();
-                let scan_result = plugins.run(r);
+                let scan_result = plugins.run(&r);
                 if !scan_result.is_empty() {
                     println!("{} {}", r.url(), scan_result);
                 } else {
@@ -177,13 +172,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 println!("{}", r.url());
             }
+        } else if config_state.print_failed() {
+            println!("{} - failed request.", r.url());
         }
-        false => {
-            if config_state.print_failed() {
-                println!("{} - failed request.", r.url());
-            }
-        }
-    });
+    }
 
     if !config_state.suppress_stats() {
         let h = &mut http;
