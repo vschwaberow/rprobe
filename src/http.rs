@@ -27,101 +27,63 @@ impl Http {
     }
 
     pub async fn work(&mut self, lines_vec: Rc<Vec<String>>) -> Vec<HttpInner> {
-        let mut tasks = Vec::new();
         let time = self.config_ptr.timeout();
         let ptr = lines_vec.deref().clone();
+        let len = lines_vec.len() as u64;
 
-        let pb = ProgressBar::new(lines_vec.len() as u64);
+        let pb = ProgressBar::new(len);
         pb.set_style(
-            ProgressStyle::with_template(
-                "[{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} ({eta})",
-            )
-            .unwrap()
-            .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
-                write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
-            })
-            .progress_chars("█▉▊▋▌▍▎▏  "),
+            ProgressStyle::default_bar()
+                .template("[{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} ({eta})")
+                .progress_chars("█▉▊▋▌▍▎▏  "),
         );
 
         let mut intv = tokio::time::interval(Duration::from_millis(15));
 
-        for line in ptr {
-            let task = tokio::spawn(async move {
+        let tasks = ptr.into_iter().map(|line| {
+            tokio::spawn(async move {
                 let client = reqwest::Client::new();
                 let res = client
-                    .get(line)
-                    .timeout(std::time::Duration::from_secs(time))
+                    .get(&line)
+                    .timeout(Duration::from_secs(time))
                     .send()
                     .await;
 
                 match res {
-                    Ok(_) => {
-                        let myresp = res.unwrap();
+                    Ok(myresp) => {
                         let url = myresp.url().to_string();
                         let status = myresp.status().as_u16();
                         let headers = myresp.headers().clone();
-                        let body = myresp.text().await;
+                        let body = myresp.text().await.unwrap_or_default();
 
-                        match body {
-                            Ok(_) => HttpInner::new_with_all(
-                                headers,
-                                body.unwrap_or_default(),
-                                status,
-                                url,
-                                true,
-                            ),
-                            Err(_) => {
-                                let body = "".to_string();
-                                HttpInner::new_with_all(headers, body, status, url, false)
-                            }
-                        }
+                        HttpInner::new_with_all(headers, body, status, url, true)
                     }
-                    Err(_) => {
-                        let myresp = res.unwrap_err();
-                        //                  let mut status_code = 0;
-                        let status = myresp.status();
-                        let mut status_code = 0;
-                        match status {
-                            Some(_) => {
-                                let _a = status_code;
-                                let status = status.unwrap().as_u16();
-                                status_code = status;
-                            }
-                            None => {
-                                status_code = 0;
-                            }
-                        }
-                        let det_status = status_code;
-                        let url = myresp.url().unwrap().as_str().to_string();
+                    Err(myresp) => {
+                        let status = myresp.status().map(|s| s.as_u16()).unwrap_or(0);
+                        let url = myresp.url().unwrap_or_default().as_str().to_string();
                         let empty = "".to_string();
 
-                        HttpInner::new_with_all(HeaderMap::new(), empty, det_status, url, false)
+                        HttpInner::new_with_all(HeaderMap::new(), empty, status, url, false)
                     }
                 }
-            });
-            tasks.push(task);
-        }
+            })
+        }).collect::<Vec<_>>();
 
         let mut http_vec: Vec<HttpInner> = Vec::new();
 
         for task in tasks {
             let rval = task.await;
             if let Ok(rvalu) = rval {
-                if rvalu.success() {
-                    intv.tick().await;
+                intv.tick().await;
+                pb.inc(1);
 
-                    pb.inc(1);
-                    let http_inner = rvalu;
-                    http_vec.push(http_inner);
+                if rvalu.success() {
+                    http_vec.push(rvalu);
                     self.state_ptr.add_success();
                 } else {
-                    intv.tick().await;
-
-                    pb.inc(1);
-                    let empty = "".to_string();
                     let url = rvalu.url().to_string();
                     let http_inner =
-                        HttpInner::new_with_all(HeaderMap::new(), empty, 0, url, false);
+                        HttpInner::new_with_all(HeaderMap::new(), "".to_string(), 0, url, false);
 
                     http_vec.push(http_inner);
                     self.state_ptr.add_failure();
