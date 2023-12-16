@@ -31,33 +31,23 @@ impl Plugin for ApacheBasicPlugin {
     }
 
     fn run(&self, http_inner: &HttpInner) -> String {
-        let mut report_string: String = String::new();
         let sig = self.add_signatures();
         let mut found: Vec<String> = Vec::new();
 
-        let value = sig.get("APACHE_BASIC").unwrap();
-        value.iter().for_each(|x| {
-            if http_inner.body().contains(x) {
-                found.push("APACHE_BASIC".to_string());
-            }
-        });
-
-        found.iter().for_each(|x| {
-            if x.as_str() == "APACHE_BASIC" {
-                if found.contains(&"APACHE_BASIC".to_string()) {
-                    let s = "Apache Server".to_string();
-                    report_string += &s;
+        for (_, value) in sig.iter() {
+            for signature in value {
+                if http_inner.body().contains(signature) {
+                    found.push("APACHE_BASIC".to_string());
+                    break;
                 }
-                found.iter().for_each(|x| {
-                    if x.as_str() == "APACHE_BASIC" && found.contains(&"APACHE_BASIC".to_string()) {
-                        let s = "Apache Server".to_string();
-                        report_string += &s;
-                    }
-                });
             }
-        });
+        }
 
-        report_string
+        if found.contains(&"APACHE_BASIC".to_string()) {
+            return "Apache Server".to_string();
+        }
+
+        String::new()
     }
 }
 
