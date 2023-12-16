@@ -16,33 +16,13 @@ pub struct HttpInner {
 }
 
 impl HttpInner {
-    pub fn body(&self) -> &str {
-        &self.body
-    }
-
-    pub fn headers(&self) -> &HeaderMap {
-        &self.headers
-    }
-
-    pub fn status(&self) -> u16 {
-        self.status
-    }
-
-    pub fn success(&self) -> bool {
-        self.success
-    }
-
-    pub fn url(&self) -> &str {
-        &self.url
-    }
-
     pub fn new() -> Self {
         HttpInner {
-            body: "".to_string(),
+            body: String::new(),
             headers: HeaderMap::new(),
             status: 0,
             success: false,
-            url: "".to_string(),
+            url: String::new(),
         }
     }
 
@@ -80,5 +60,25 @@ impl HttpInner {
 
     pub fn set_url(&mut self, url: String) {
         self.url = url;
+    }
+
+    pub fn body(&self) -> &str {
+        &self.body
+    }
+
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+
+    pub fn status(&self) -> u16 {
+        self.status
+    }
+
+    pub fn success(&self) -> bool {
+        self.success
+    }
+
+    pub fn url(&self) -> &str {
+        &self.url
     }
 }
