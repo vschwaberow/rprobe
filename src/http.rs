@@ -6,9 +6,8 @@
 use crate::config::ConfigParameter;
 use crate::getstate::GetState;
 use crate::httpinner::HttpInner;
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::header::HeaderMap;
-use std::fmt::Write;
 use std::time::Duration;
 use std::{ops::Deref, rc::Rc};
 
