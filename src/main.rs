@@ -17,8 +17,8 @@ use std::env;
 use std::io::{self, BufRead};
 use std::rc::Rc;
 
-fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
-    let dt = chrono::NaiveDateTime::from_timestamp_opt((time / 1000) as i64, 0);
+fn get_human_readable_time(time: u64) -> chrono::DateTime<chrono::Utc> {
+    let dt = chrono::DateTime::from_timestamp((time / 1000) as i64, 0);
     match dt {
         Some(dt) => dt,
         None => {
