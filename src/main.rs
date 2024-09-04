@@ -16,16 +16,14 @@ use http::Http;
 use std::env;
 use std::io::{self, BufRead};
 use std::rc::Rc;
+use chrono::{DateTime, Utc};
 
-fn get_human_readable_time(time: u64) -> chrono::NaiveDateTime {
-    let dt = chrono::NaiveDateTime::from_timestamp_opt((time / 1000) as i64, 0);
-    match dt {
-        Some(dt) => dt,
-        None => {
-            println!("Error: Could not convert time");
+fn get_human_readable_time(time: u64) -> DateTime<Utc> {
+    DateTime::from_timestamp((time / 1000) as i64, 0)
+        .unwrap_or_else(|| {
+            eprintln!("Error: Could not convert time");
             std::process::exit(1);
-        }
-    }
+        })
 }
 
 use std::collections::VecDeque;
@@ -36,23 +34,25 @@ fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
     let mut lines_deque = VecDeque::new();
     for line in lines {
         let line = match line {
-            Ok(line) => line,
+            Ok(line) => line.trim().to_string(),
             Err(_) => {
                 println!("[!] Error reading line from stdin");
                 std::process::exit(1);
             }
         };
-        if line.starts_with("https://") || line.starts_with("http://") {
-            lines_deque.push_back(line);
-        } else {
-            match (config_ptr.http(), config_ptr.https()) {
-                (true, true) => {
-                    lines_deque.push_back(format!("http://{}", line));
-                    lines_deque.push_back(format!("https://{}", line));
+        if !line.is_empty() {
+            if line.starts_with("https://") || line.starts_with("http://") {
+                lines_deque.push_back(line);
+            } else {
+                match (config_ptr.http(), config_ptr.https()) {
+                    (true, true) => {
+                        lines_deque.push_back(format!("http://{}", line));
+                        lines_deque.push_back(format!("https://{}", line));
+                    }
+                    (true, false) => lines_deque.push_back(format!("http://{}", line)),
+                    (false, true) => lines_deque.push_back(format!("https://{}", line)),
+                    (false, false) => (),
                 }
-                (true, false) => lines_deque.push_back(format!("http://{}", line)),
-                (false, true) => lines_deque.push_back(format!("https://{}", line)),
-                (false, false) => (),
             }
         }
     }
@@ -170,7 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let plugins = plugins::PluginHandler::new();
                 let scan_result = plugins.run(r);
                 if !scan_result.is_empty() {
-                    println!("{} {}", r.url(), scan_result);
+                    println!("{} {}", r.url(), scan_result.join(", "));
                 } else {
                     println!("{}", r.url());
                 }
