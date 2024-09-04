@@ -34,23 +34,25 @@ fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
     let mut lines_deque = VecDeque::new();
     for line in lines {
         let line = match line {
-            Ok(line) => line,
+            Ok(line) => line.trim().to_string(),
             Err(_) => {
                 println!("[!] Error reading line from stdin");
                 std::process::exit(1);
             }
         };
-        if line.starts_with("https://") || line.starts_with("http://") {
-            lines_deque.push_back(line);
-        } else {
-            match (config_ptr.http(), config_ptr.https()) {
-                (true, true) => {
-                    lines_deque.push_back(format!("http://{}", line));
-                    lines_deque.push_back(format!("https://{}", line));
+        if !line.is_empty() {
+            if line.starts_with("https://") || line.starts_with("http://") {
+                lines_deque.push_back(line);
+            } else {
+                match (config_ptr.http(), config_ptr.https()) {
+                    (true, true) => {
+                        lines_deque.push_back(format!("http://{}", line));
+                        lines_deque.push_back(format!("https://{}", line));
+                    }
+                    (true, false) => lines_deque.push_back(format!("http://{}", line)),
+                    (false, true) => lines_deque.push_back(format!("https://{}", line)),
+                    (false, false) => (),
                 }
-                (true, false) => lines_deque.push_back(format!("http://{}", line)),
-                (false, true) => lines_deque.push_back(format!("https://{}", line)),
-                (false, false) => (),
             }
         }
     }
@@ -168,7 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let plugins = plugins::PluginHandler::new();
                 let scan_result = plugins.run(r);
                 if !scan_result.is_empty() {
-                    println!("{} {}", r.url(), scan_result);
+                    println!("{} {}", r.url(), scan_result.join(", "));
                 } else {
                     println!("{}", r.url());
                 }

@@ -47,6 +47,16 @@ impl Http {
 
         for line in ptr {
             let task = tokio::spawn(async move {
+                if line.trim().is_empty() {
+                    return HttpInner::new_with_all(
+                        HeaderMap::new(),
+                        "Empty URL".to_string(),
+                        0,
+                        "Empty URL".to_string(),
+                        false,
+                    );
+                }
+
                 let client = reqwest::Client::new();
                 let res = client
                     .get(line)
@@ -76,26 +86,14 @@ impl Http {
                             }
                         }
                     }
-                    Err(_) => {
-                        let myresp = res.unwrap_err();
-                        //                  let mut status_code = 0;
-                        let status = myresp.status();
-                        let mut status_code = 0;
-                        match status {
-                            Some(_) => {
-                                let _a = status_code;
-                                let status = status.unwrap().as_u16();
-                                status_code = status;
-                            }
-                            None => {
-                                status_code = 0;
-                            }
-                        }
-                        let det_status = status_code;
-                        let url = myresp.url().unwrap().as_str().to_string();
-                        let empty = "".to_string();
+                    Err(e) => {
+                        let status_code = e.status().map_or(0, |s| s.as_u16());
+                        let url = e.url().map_or_else(|| "Unknown URL".to_string(), |u| u.to_string());
+                        let error_msg = format!("Error: {}", e);
+                        
+                        println!("Request failed for {}: {}", url, error_msg);
 
-                        HttpInner::new_with_all(HeaderMap::new(), empty, det_status, url, false)
+                        HttpInner::new_with_all(HeaderMap::new(), error_msg, status_code, url, false)
                     }
                 }
             });
