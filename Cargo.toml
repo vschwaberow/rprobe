@@ -1,6 +1,6 @@
 [package]
 name = "rprobe"
-version = "0.5.8"
+version = "0.5.9"
 edition = "2021"
 license = "MIT"
 authors = ["Volker Schwaberow <volker@schwaberow.de>"]
@@ -21,6 +21,7 @@ opt-level = "s"
 [dependencies]
 atty = "0.2.14"
 chrono = "0.4.22"
+governor = "0.6.3"
 indicatif = "0.17.1"
 reqwest = "0.11.11"
 time = "0.3.22"
