@@ -3,6 +3,7 @@
 // Copyright (c) 2023
 // - Volker Schwaberow <volker@schwaberow.de>
 
+use std::num::NonZeroU32;
 #[derive(Debug, Clone, Copy)]
 pub struct ConfigParameter {
     print_failed: bool,
@@ -11,6 +12,7 @@ pub struct ConfigParameter {
     https: bool,
     timeout: u64,
     suppress_stats: bool,
+    rate_limit: NonZeroU32,
 }
 
 impl ConfigParameter {
@@ -22,6 +24,7 @@ impl ConfigParameter {
             https: true,
             timeout: 10,
             suppress_stats: false,
+            rate_limit: NonZeroU32::new(100).unwrap(),
         }
     }
 
@@ -71,5 +74,9 @@ impl ConfigParameter {
 
     pub fn set_suppress_stats(&mut self, suppress_stats: bool) {
         self.suppress_stats = suppress_stats;
+    }
+
+    pub fn set_rate_limit(&mut self, rate: NonZeroU32) {
+        self.rate_limit = rate;
     }
 }

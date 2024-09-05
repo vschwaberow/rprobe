@@ -10,20 +10,20 @@ mod httpinner;
 mod plugins;
 
 use atty::Stream;
+use chrono::{DateTime, Utc};
 use config::ConfigParameter;
 use getstate::GetState;
 use http::Http;
 use std::env;
 use std::io::{self, BufRead};
+use std::num::NonZeroU32;
 use std::rc::Rc;
-use chrono::{DateTime, Utc};
 
 fn get_human_readable_time(time: u64) -> DateTime<Utc> {
-    DateTime::from_timestamp((time / 1000) as i64, 0)
-        .unwrap_or_else(|| {
-            eprintln!("Error: Could not convert time");
-            std::process::exit(1);
-        })
+    DateTime::from_timestamp((time / 1000) as i64, 0).unwrap_or_else(|| {
+        eprintln!("Error: Could not convert time");
+        std::process::exit(1);
+    })
 }
 
 use std::collections::VecDeque;
@@ -95,6 +95,7 @@ fn print_help() {
     println!("  -s, --suppress-stats\t\tSuppress statistics");
     println!(" -da, --detect-all\t\tRun all detection plugins on hosts");
     println!("  -p, --plugins\t\t\tList available plugins");
+    println!("  -r, --rate-limit\t\tSet rate limit in requests per second (default: 10)");
     println!();
 }
 
@@ -144,6 +145,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             l.iter().for_each(|p| println!("  {}", p));
             std::process::exit(0);
         }
+        "-r" | "--rate-limit" => {
+            if let Some(value) = args.get(args.iter().position(|r| r == arg).unwrap() + 1) {
+                if let Ok(parsed) = value.parse::<u32>() {
+                    let rate_limit = NonZeroU32::new(parsed).unwrap_or(NonZeroU32::new(10).unwrap());
+                    config_state.set_rate_limit(rate_limit);
+                } else {
+                    eprintln!("Invalid rate limit value. Using default.");
+                }
+            }
+        }
         _ => {}
     });
 
@@ -154,8 +165,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(0);
     }
 
+    let rate_limit = args
+        .iter()
+        .position(|arg| arg == "-r" || arg == "--rate-limit")
+        .and_then(|index| args.get(index + 1))
+        .and_then(|value| value.parse::<u32>().ok())
+        .map(|value| NonZeroU32::new(value).unwrap_or(NonZeroU32::new(10).unwrap()))
+        .unwrap_or(NonZeroU32::new(10).unwrap());
+
     tokio_state.set_start_time(get_now());
-    let mut http = Http::new(tokio_state, config_state);
+    let mut http = Http::new(tokio_state, config_state, rate_limit);
 
     let lines_vec = get_stdio_lines(&config_state);
     http.state_ptr.set_total_requests(lines_vec.len() as u64);

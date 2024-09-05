@@ -6,23 +6,28 @@
 use crate::config::ConfigParameter;
 use crate::getstate::GetState;
 use crate::httpinner::HttpInner;
+use governor::{clock::DefaultClock, state::InMemoryState, state::NotKeyed, Quota, RateLimiter};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use reqwest::header::HeaderMap;
 use std::fmt::Write;
+use std::num::NonZeroU32;
+use std::sync::Arc;
 use std::time::Duration;
 use std::{ops::Deref, rc::Rc};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Http {
     pub state_ptr: GetState,
     pub config_ptr: ConfigParameter,
+    rate_limiter: Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
 }
 
 impl Http {
-    pub fn new(state_ptr: GetState, config_ptr: ConfigParameter) -> Self {
+    pub fn new(state_ptr: GetState, config_ptr: ConfigParameter, rate_limit: NonZeroU32) -> Self {
         Http {
             state_ptr,
             config_ptr,
+            rate_limiter: Arc::new(RateLimiter::direct(Quota::per_second(rate_limit))),
         }
     }
 
@@ -46,7 +51,13 @@ impl Http {
         let mut intv = tokio::time::interval(Duration::from_millis(15));
 
         for line in ptr {
+            self.rate_limiter.until_ready().await;
+
+            let rate_limiter = Arc::clone(&self.rate_limiter);
             let task = tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                rate_limiter.until_ready().await;
+
                 if line.trim().is_empty() {
                     return HttpInner::new_with_all(
                         HeaderMap::new(),
@@ -88,12 +99,20 @@ impl Http {
                     }
                     Err(e) => {
                         let status_code = e.status().map_or(0, |s| s.as_u16());
-                        let url = e.url().map_or_else(|| "Unknown URL".to_string(), |u| u.to_string());
+                        let url = e
+                            .url()
+                            .map_or_else(|| "Unknown URL".to_string(), |u| u.to_string());
                         let error_msg = format!("Error: {}", e);
-                        
+
                         println!("Request failed for {}: {}", url, error_msg);
 
-                        HttpInner::new_with_all(HeaderMap::new(), error_msg, status_code, url, false)
+                        HttpInner::new_with_all(
+                            HeaderMap::new(),
+                            error_msg,
+                            status_code,
+                            url,
+                            false,
+                        )
                     }
                 }
             });
