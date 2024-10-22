@@ -10,6 +10,7 @@ mod httpinner;
 mod plugins;
 
 use chrono::{DateTime, Utc};
+use clap::{ArgGroup, Parser};
 use config::ConfigParameter;
 use getstate::GetState;
 use http::Http;
@@ -17,6 +18,54 @@ use std::env;
 use std::io::{self, BufRead, IsTerminal};
 use std::num::NonZeroU32;
 use std::rc::Rc;
+
+#[derive(Parser, Debug)]
+#[command(
+    name = env!("CARGO_PKG_NAME"),
+    version = env!("CARGO_PKG_VERSION"),
+    author = env!("CARGO_PKG_AUTHORS"),
+    about = env!("CARGO_PKG_DESCRIPTION"),
+    group(
+        ArgGroup::new("protocol")
+            .required(false)
+            .args(["nohttp", "nohttps"])
+    )
+)]
+struct Cli {
+    #[arg(
+        short = 't',
+        long = "timeout",
+        value_name = "SECONDS",
+        default_value_t = 10
+    )]
+    timeout: u64,
+
+    #[arg(short = 'n', long = "nohttp", conflicts_with = "nohttps")]
+    nohttp: bool,
+
+    #[arg(short = 'N', long = "nohttps", conflicts_with = "nohttp")]
+    nohttps: bool,
+
+    #[arg(short = 'S', long = "show-unresponsive")]
+    show_unresponsive: bool,
+
+    #[arg(short = 's', long = "suppress-stats")]
+    suppress_stats: bool,
+
+    #[arg(short = 'd', long = "detect-all")]
+    detect_all: bool,
+
+    #[arg(short = 'p', long = "plugins")]
+    list_plugins: bool,
+
+    #[arg(
+        short = 'r',
+        long = "rate-limit",
+        value_name = "RATE",
+        default_value_t = 10
+    )]
+    rate_limit: u32,
+}
 
 fn get_human_readable_time(time: u64) -> DateTime<Utc> {
     DateTime::from_timestamp((time / 1000) as i64, 0).unwrap_or_else(|| {
@@ -61,7 +110,7 @@ fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
 fn check_for_stdin() {
     let stdin = io::stdin();
     if stdin.is_terminal() {
-        print_help();
+        print_prg_info();
         std::process::exit(0);
     }
 }
@@ -82,96 +131,56 @@ fn print_prg_info() {
     println!();
 }
 
-fn print_help() {
-    print_prg_info();
-    println!("Usage: cat domains.txt | rprobe [options]");
-    println!("Options:");
-    println!("  -h, --help\t\t\tPrint this help");
-    println!("  -v, --version\t\t\tPrint version information");
-    println!("  -t, --timeout\t\t\tSet timeout in seconds (default: 10)");
-    println!("  -n, --nohttp\t\t\tDo not probe http://");
-    println!("  -N, --nohttps\t\t\tDo not probe https://");
-    println!("  -S, --show-unresponsive\tShow unresponsive hosts");
-    println!("  -s, --suppress-stats\t\tSuppress statistics");
-    println!(" -da, --detect-all\t\tRun all detection plugins on hosts");
-    println!("  -p, --plugins\t\t\tList available plugins");
-    println!("  -r, --rate-limit\t\tSet rate limit in requests per second (default: 10)");
-    println!();
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
+
     let mut tokio_state = GetState::new();
     let mut config_state = ConfigParameter::new();
 
     check_for_stdin();
 
-    let args: Vec<String> = env::args().collect();
+    config_state.set_timeout(cli.timeout);
 
-    args.iter().for_each(|arg| match arg.as_str() {
-        "-h" | "--help" => {
-            print_help();
-            std::process::exit(0);
+    if cli.nohttp {
+        config_state.set_http(false);
+    }
+
+    if cli.nohttps {
+        config_state.set_https(false);
+    }
+
+    if cli.show_unresponsive {
+        config_state.set_print_failed(true);
+    }
+
+    if cli.suppress_stats {
+        config_state.set_suppress_stats(true);
+    }
+
+    if cli.detect_all {
+        config_state.set_detect_all(true);
+    }
+
+    if cli.list_plugins {
+        let plugins = plugins::PluginHandler::new();
+        let plugin_list = plugins.list();
+        println!("Available plugins:");
+        for plugin in plugin_list {
+            println!("  {}", plugin);
         }
-        "-v" | "--version" => {
-            print_prg_info();
-            std::process::exit(0);
-        }
-        "-t" | "--timeout" => {
-            let timeout = args
-                .get(args.iter().position(|r| r == arg).unwrap() + 1)
-                .unwrap();
-            config_state.set_timeout(timeout.parse::<u64>().unwrap());
-        }
-        "-n" | "--nohttp" => {
-            config_state.set_http(false);
-        }
-        "-N" | "--nohttps" => {
-            config_state.set_https(false);
-        }
-        "-S" | "--show-unresponsive" => {
-            config_state.set_print_failed(true);
-        }
-        "-s" | "--suppress-stats" => {
-            config_state.set_suppress_stats(true);
-        }
-        "-da" | "--detect-all" => {
-            config_state.set_detect_all(true);
-        }
-        "-p" | "--plugins" => {
-            let plugins = plugins::PluginHandler::new();
-            let l = plugins.list();
-            println!("Available plugins:");
-            l.iter().for_each(|p| println!("  {}", p));
-            std::process::exit(0);
-        }
-        "-r" | "--rate-limit" => {
-            if let Some(value) = args.get(args.iter().position(|r| r == arg).unwrap() + 1) {
-                if let Ok(parsed) = value.parse::<u32>() {
-                    let rate_limit = NonZeroU32::new(parsed).unwrap_or(NonZeroU32::new(10).unwrap());
-                    config_state.set_rate_limit(rate_limit);
-                } else {
-                    eprintln!("Invalid rate limit value. Using default.");
-                }
-            }
-        }
-        _ => {}
-    });
+        std::process::exit(0);
+    }
 
     if !config_state.http() && !config_state.https() {
         println!("Error: You can't use -n and -N at the same time");
         println!();
-        print_help();
+        print_prg_info();
         std::process::exit(0);
     }
 
-    let rate_limit = args
-        .iter()
-        .position(|arg| arg == "-r" || arg == "--rate-limit")
-        .and_then(|index| args.get(index + 1))
-        .and_then(|value| value.parse::<u32>().ok())
-        .map(|value| NonZeroU32::new(value).unwrap_or(NonZeroU32::new(10).unwrap()))
-        .unwrap_or(NonZeroU32::new(10).unwrap());
+    let rate_limit =
+        NonZeroU32::new(cli.rate_limit).unwrap_or_else(|| NonZeroU32::new(10).unwrap());
 
     tokio_state.set_start_time(get_now());
     let mut http = Http::new(tokio_state, config_state, rate_limit);
@@ -183,8 +192,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     http.state_ptr.set_end_time(get_now());
 
-    results.iter().for_each(|r| match r.success() {
-        true => {
+    for r in results.iter() {
+        if r.success() {
             if config_state.detect_all() {
                 let plugins = plugins::PluginHandler::new();
                 let scan_result = plugins.run(r);
@@ -196,13 +205,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 println!("{}", r.url());
             }
-        }
-        false => {
+        } else {
             if config_state.print_failed() {
                 println!("{} - failed request.", r.url());
             }
         }
-    });
+    }
 
     if !config_state.suppress_stats() {
         let h = &mut http;
@@ -216,5 +224,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             h.state_ptr.failed_requests()
         );
     }
+
     Ok(())
 }
