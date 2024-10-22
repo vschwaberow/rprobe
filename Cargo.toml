@@ -19,7 +19,6 @@ codegen-units = 1
 opt-level = "s"
 
 [dependencies]
-atty = "0.2.14"
 chrono = "0.4.22"
 governor = "0.6.3"
 indicatif = "0.17.1"

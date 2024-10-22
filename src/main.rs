@@ -9,13 +9,12 @@ mod http;
 mod httpinner;
 mod plugins;
 
-use atty::Stream;
 use chrono::{DateTime, Utc};
 use config::ConfigParameter;
 use getstate::GetState;
 use http::Http;
 use std::env;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, IsTerminal};
 use std::num::NonZeroU32;
 use std::rc::Rc;
 
@@ -60,7 +59,8 @@ fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
 }
 
 fn check_for_stdin() {
-    if atty::is(Stream::Stdin) {
+    let stdin = io::stdin();
+    if stdin.is_terminal() {
         print_help();
         std::process::exit(0);
     }
