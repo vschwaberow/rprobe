@@ -14,7 +14,7 @@ use config::ConfigParameter;
 use getstate::GetState;
 use http::Http;
 use std::env;
-use std::io::{self, BufRead, IsTerminal}; // Updated import
+use std::io::{self, BufRead, IsTerminal};
 use std::num::NonZeroU32;
 use std::rc::Rc;
 
@@ -60,7 +60,7 @@ fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
 
 fn check_for_stdin() {
     let stdin = io::stdin();
-    if stdin.is_terminal() { // Updated condition
+    if stdin.is_terminal() {
         print_help();
         std::process::exit(0);
     }
