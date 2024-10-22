@@ -76,7 +76,18 @@ impl ConfigParameter {
         self.suppress_stats = suppress_stats;
     }
 
+    #[allow(dead_code)]
     pub fn set_rate_limit(&mut self, rate: NonZeroU32) {
         self.rate_limit = rate;
     }
+
+    #[allow(dead_code)]
+    pub fn rate_limit(&self) -> NonZeroU32 {
+        self.rate_limit
+    }
+}
+
+#[allow(dead_code)]
+fn display_rate_limit(config: &ConfigParameter) {
+    println!("Current rate limit: {}", config.rate_limit);
 }

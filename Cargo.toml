@@ -1,6 +1,6 @@
 [package]
 name = "rprobe"
-version = "0.5.9"
+version = "0.6.0"
 edition = "2021"
 license = "MIT"
 authors = ["Volker Schwaberow <volker@schwaberow.de>"]
@@ -19,10 +19,10 @@ codegen-units = 1
 opt-level = "s"
 
 [dependencies]
-atty = "0.2.14"
-chrono = "0.4.22"
-governor = "0.6.3"
-indicatif = "0.17.1"
-reqwest = "0.11.11"
-time = "0.3.22"
-tokio = { version = "1.23.1", features = ["full"] }
+chrono = "0.4"
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4.2.0", features = ["derive"] }
+indicatif = { version = "0.17.8", features = ["rayon"] }
+governor = "0.7.0"
+reqwest = "0.12.8"
+# Other dependencies...
