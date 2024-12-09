@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-Identifier: MIT OR Apache-2.0
 //
 // Copyright (c) 2023
 // - Volker Schwaberow <volker@schwaberow.de>
@@ -38,10 +38,10 @@ impl PluginHandler {
     }
 
     pub fn list(&self) -> Vec<String> {
-        vec!["apachebasic".to_string()]
+        self.plugins.iter().map(|plugin| plugin.name().to_string()).collect()
     }
 
-    fn register_known_plugins(&mut self) {
+    pub fn register_known_plugins(&mut self) {
         self.plugins.push(Box::new(apachebasic::ApacheBasicPlugin));
     }
 }
