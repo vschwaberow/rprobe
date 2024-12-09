@@ -28,14 +28,13 @@ use std::rc::Rc;
     group(
         ArgGroup::new("protocol")
             .required(false)
-            .args(["nohttp", "nohttps"])
+            .args(&["nohttp", "nohttps"]),
     )
 )]
 struct Cli {
     #[arg(
         short = 't',
         long = "timeout",
-        value_name = "SECONDS",
         default_value_t = 10
     )]
     timeout: u64,
@@ -61,57 +60,34 @@ struct Cli {
     #[arg(
         short = 'r',
         long = "rate-limit",
-        value_name = "RATE",
         default_value_t = 10
     )]
     rate_limit: u32,
+
+    #[arg(
+        long = "plugin",
+        help = "Specify a plugin to use",
+        required = false
+    )]
+    plugin: Option<String>,
 }
 
 fn get_human_readable_time(time: u64) -> DateTime<Utc> {
     DateTime::from_timestamp((time / 1000) as i64, 0).unwrap_or_else(|| {
-        eprintln!("Error: Could not convert time");
         std::process::exit(1);
     })
 }
 
-use std::collections::VecDeque;
-
-fn get_stdio_lines(config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
+fn get_stdio_lines(_config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
     let stdin = io::stdin();
-    let lines = stdin.lock().lines();
-    let mut lines_deque = VecDeque::new();
-    for line in lines {
-        let line = match line {
-            Ok(line) => line.trim().to_string(),
-            Err(_) => {
-                println!("[!] Error reading line from stdin");
-                std::process::exit(1);
-            }
-        };
-        if !line.is_empty() {
-            if line.starts_with("https://") || line.starts_with("http://") {
-                lines_deque.push_back(line);
-            } else {
-                match (config_ptr.http(), config_ptr.https()) {
-                    (true, true) => {
-                        lines_deque.push_back(format!("http://{}", line));
-                        lines_deque.push_back(format!("https://{}", line));
-                    }
-                    (true, false) => lines_deque.push_back(format!("http://{}", line)),
-                    (false, true) => lines_deque.push_back(format!("https://{}", line)),
-                    (false, false) => (),
-                }
-            }
-        }
-    }
-    Rc::new(lines_deque.into_iter().collect())
+    let lines: Vec<String> = stdin.lock().lines().filter_map(Result::ok).collect();
+    Rc::new(lines)
 }
 
 fn check_for_stdin() {
-    let stdin = io::stdin();
-    if stdin.is_terminal() {
-        print_prg_info();
-        std::process::exit(0);
+    if io::stdin().is_terminal() {
+        println!("No input detected. Please provide URLs via stdin.");
+        std::process::exit(1);
     }
 }
 
@@ -194,14 +170,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for r in results.iter() {
         if r.success() {
-            if config_state.detect_all() {
-                let plugins = plugins::PluginHandler::new();
-                let scan_result = plugins.run(r);
-                if !scan_result.is_empty() {
-                    println!("{} {}", r.url(), scan_result.join(", "));
-                } else {
-                    println!("{}", r.url());
-                }
+            let plugins = plugins::PluginHandler::new();
+            let scan_result = if let Some(plugin_name) = &cli.plugin {
+                plugins.run(r).into_iter().filter(|result| result.contains(plugin_name)).collect::<Vec<_>>()
+            } else if config_state.detect_all() {
+                plugins.run(r)
+            } else {
+                vec![]
+            };
+
+            if !scan_result.is_empty() {
+                println!("{} {}", r.url(), scan_result.join(", "));
             } else {
                 println!("{}", r.url());
             }
