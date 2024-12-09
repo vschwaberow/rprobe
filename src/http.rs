@@ -76,24 +76,23 @@ impl Http {
                     .await;
 
                 match res {
-                    Ok(_) => {
-                        let myresp = res.unwrap();
+                    Ok(myresp) => {
                         let url = myresp.url().to_string();
                         let status = myresp.status().as_u16();
                         let headers = myresp.headers().clone();
                         let body = myresp.text().await;
 
                         match body {
-                            Ok(_) => HttpInner::new_with_all(
+                            Ok(body_text) => HttpInner::new_with_all(
                                 headers,
-                                body.unwrap_or_default(),
+                                body_text,
                                 status,
                                 url,
                                 true,
                             ),
-                            Err(_) => {
-                                let body = "".to_string();
-                                HttpInner::new_with_all(headers, body, status, url, false)
+                            Err(e) => {
+                                let error_msg = format!("Failed to read body: {}", e);
+                                HttpInner::new_with_all(headers, error_msg, status, url, false)
                             }
                         }
                     }
