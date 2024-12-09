@@ -25,4 +25,6 @@ clap = { version = "4.2.0", features = ["derive"] }
 indicatif = { version = "0.17.8", features = ["rayon"] }
 governor = "0.7.0"
 reqwest = "0.12.8"
+regex = "1.11.1"
+log = "0.4.22"
 # Other dependencies...
