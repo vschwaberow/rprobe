@@ -18,38 +18,40 @@ impl Plugin for NginxBasicPlugin {
 
     fn run(&self, http_inner: &HttpInner) -> Option<String> {
         let body_patterns = [
-            r"<title>Welcome to nginx!</title>",
-            r"<h1>Welcome to nginx</h1>",
-            r"<center>nginx</center>",
-            r"<hr><center>nginx/\d+\.\d+\.\d+</center>",
-            r"Thank you for using nginx",
+            (r"<title>Welcome to nginx!</title>", "Default Title"),
+            (r"<h1>Welcome to nginx</h1>", "Header Message"),
+            (r"<center>nginx</center>", "Centered Text"),
+            (r"<hr><center>nginx/\d+\.\d+\.\d+</center>", "Version Info"),
+            (r"Thank you for using nginx", "Thank You Message"),
         ];
 
         let header_patterns = [
-            r"^nginx$",
-            r"^nginx/\d+\.\d+\.\d+$",
-            r"^openresty$",
-            r"^openresty/\d+\.\d+\.\d+\.\d+$"
+            (r"^nginx$", "Server Header"),
+            (r"^nginx/\d+\.\d+\.\d+$", "Server Version Header"),
+            (r"^openresty$", "OpenResty Header"),
+            (r"^openresty/\d+\.\d+\.\d+\.\d+$", "OpenResty Version Header"),
         ];
 
-        for pattern in &body_patterns {
+        let mut detections: Vec<&'static str> = Vec::new();
+
+        for (pattern, description) in &body_patterns {
             let re = Regex::new(pattern).unwrap();
             if re.is_match(http_inner.body()) {
-                info!("Nginx server detected in body with pattern: {}", pattern);
-                return Some("Nginx Server detected in body".to_string());
+                info!("Nginx detected in body: {}", description);
+                detections.push(description);
             }
         }
 
         if let Some(server_header_value) = http_inner.headers().get("Server") {
             let server_value = server_header_value.to_str().unwrap_or("");
-            for pattern in &header_patterns {
+            for (pattern, description) in &header_patterns {
                 let re = RegexBuilder::new(pattern)
                     .case_insensitive(true)
                     .build()
                     .unwrap();
                 if re.is_match(server_value) {
-                    info!("Nginx server detected in header with pattern: {}", pattern);
-                    return Some("Nginx Server detected in header".to_string());
+                    info!("Nginx detected in header: {}", description);
+                    detections.push(description);
                 }
             }
         }
@@ -57,11 +59,35 @@ impl Plugin for NginxBasicPlugin {
         if let Some(powered_by) = http_inner.headers().get("X-Powered-By") {
             let powered_value = powered_by.to_str().unwrap_or("");
             if powered_value.to_lowercase().contains("nginx") {
-                info!("Nginx server detected in X-Powered-By header");
-                return Some("Nginx Server detected in X-Powered-By header".to_string());
+                info!("Nginx detected in X-Powered-By header");
+                detections.push("X-Powered-By Header");
             }
         }
 
-        None
+        if !detections.is_empty() {
+            // Define the desired order
+            let order = vec![
+                "Default Title",
+                "Header Message",
+                "Centered Text",
+                "Version Info",
+                "Thank You Message",
+                "Server Header",
+                "Server Version Header",
+                "OpenResty Header",
+                "OpenResty Version Header",
+                "X-Powered-By Header",
+            ];
+
+            detections.sort_by_key(|det| order.iter().position(|&o| o == *det).unwrap_or(order.len()));
+
+            detections.dedup();
+
+            let detection_message = detections.join(", ");
+
+            Some(format!("Nginx Server Detected: {}", detection_message))
+        } else {
+            None
+        }
     }
 }
