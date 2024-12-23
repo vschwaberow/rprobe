@@ -5,6 +5,8 @@
 
 #![allow(dead_code)]
 pub mod apachebasic;
+pub mod nginxbasic;
+pub mod cloudflarebasic;
 
 use crate::httpinner::HttpInner;
 
@@ -43,5 +45,7 @@ impl PluginHandler {
 
     pub fn register_known_plugins(&mut self) {
         self.plugins.push(Box::new(apachebasic::ApacheBasicPlugin));
+        self.plugins.push(Box::new(nginxbasic::NginxBasicPlugin));
+        self.plugins.push(Box::new(cloudflarebasic::CloudflareBasicPlugin));
     }
 }

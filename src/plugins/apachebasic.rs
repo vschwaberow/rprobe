@@ -18,47 +18,81 @@ impl Plugin for ApacheBasicPlugin {
 
     fn run(&self, http_inner: &HttpInner) -> Option<String> {
         let body_patterns = [
-            r"<html><body><h1>It works!</h1></body></html>",
-            r"<html>Apache is functioning normally</html>",
-            r"<body><center>This IP is being shared among many domains\.<br>",
-            r"<html><head><title>Apache2 Ubuntu Default Page: It works</title></head>",
-            r"This IP is being shared among many domains\.",
-            r"Apache\/\d+\.\d+\.\d+",
+            (
+                r"<html><body><h1>It works!</h1></body></html>",
+                "Standard HTML Body",
+            ),
+            (
+                r"<html>Apache is functioning normally</html>",
+                "Apache Functioning Message",
+            ),
+            (
+                r"<body><center>This IP is being shared among many domains\.<br>",
+                "Shared IP Notice",
+            ),
+            (
+                r"<html><head><title>Apache2 Ubuntu Default Page: It works</title></head>",
+                "Ubuntu Default Page",
+            ),
+            (
+                r"This IP is being shared among many domains\.",
+                "Shared IP Message",
+            ),
+            (r"Apache\/\d+\.\d+\.\d+", "Apache Version Info"),
         ];
 
-        let header_patterns = [r"^Apache$", r"^Apache/\d+\.\d+(\.\d+)?$"];
+        let header_patterns = [
+            (r"^Apache$", "Server Header"),
+            (r"^Apache/\d+\.\d+(\.\d+)?$", "Server Version Header"),
+            (r"(?i)apache", "Server Header Contains 'Apache'"),
+        ];
 
-        for pattern in &body_patterns {
+        let mut detections = Vec::new();
+
+        for (pattern, description) in &body_patterns {
             let re = Regex::new(pattern).unwrap();
             if re.is_match(http_inner.body()) {
-                info!("Apache server detected in body with pattern: {}", pattern);
-                return Some("Apache Server detected in body".to_string());
+                info!("Apache detected in body: {}", description);
+                detections.push(*description);
             }
         }
 
-        if let Some(server_header_value) = http_inner.headers().get("Server") {
-            let server_value = server_header_value.to_str().unwrap_or("");
-            for pattern in &header_patterns {
+        for (pattern, description) in &header_patterns {
+            if let Some(server_header_value) = http_inner.headers().get("Server") {
+                let server_value = server_header_value.to_str().unwrap_or("");
                 let re = RegexBuilder::new(pattern)
-                    .case_insensitive(true)
+                    .case_insensitive(*pattern == "(?i)apache")
                     .build()
                     .unwrap();
                 if re.is_match(server_value) {
-                    info!("Apache server detected in header with pattern: {}", pattern);
-                    return Some("Apache Server detected in header".to_string());
+                    info!("Apache detected in header: {}", description);
+                    detections.push(*description);
                 }
             }
         }
 
-        if let Some(server_header_value) = http_inner.headers().get("server") {
-            let server_value = server_header_value.to_str().unwrap_or("");
-            let server_value_lower = server_value.to_lowercase();
-            if server_value_lower.contains("apache") {
-                info!("Apache-Server im Header erkannt: {}", server_value);
-                return Some("Apache-Server im Header erkannt".to_string());
-            }
-        }
+        if !detections.is_empty() {
+            let order = vec![
+                "Standard HTML Body",
+                "Apache Functioning Message",
+                "Ubuntu Default Page",
+                "Shared IP Notice",
+                "Shared IP Message",
+                "Apache Version Info",
+                "Server Header",
+                "Server Version Header",
+                "Server Header Contains 'Apache'",
+            ];
 
-        None
+            detections.sort_by_key(|det| order.iter().position(|&o| o == *det).unwrap_or(order.len()));
+
+            detections.dedup();
+
+            let detection_message = detections.join(", ");
+
+            Some(format!("Apache Server Detected: {}", detection_message))
+        } else {
+            None
+        }
     }
 }
