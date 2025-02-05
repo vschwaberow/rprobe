@@ -1,3 +1,4 @@
+// File: wordpressbasic.rs
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
 // Copyright (c) 2025
@@ -6,9 +7,25 @@
 use crate::httpinner::HttpInner;
 use crate::plugins::Plugin;
 use log::info;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 pub struct WordpressBasicPlugin;
+
+static BODY_PATTERNS: Lazy<Vec<(Regex, &str)>> = Lazy::new(|| {
+    vec![
+        (
+            Regex::new(r#"(?i)<meta\s+name="generator"\s+content="WordPress"#).unwrap(),
+            "Meta Generator",
+        ),
+        (Regex::new(r"(?i)wp-content").unwrap(), "WP Content"),
+        (Regex::new(r"(?i)wp-includes").unwrap(), "WP Includes"),
+    ]
+});
+
+static API_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)<link\s+rel=["']https://api\.w\.org/["']"#).unwrap()
+});
 
 impl Plugin for WordpressBasicPlugin {
     fn name(&self) -> &'static str {
@@ -16,25 +33,16 @@ impl Plugin for WordpressBasicPlugin {
     }
 
     fn run(&self, http_inner: &HttpInner) -> Option<String> {
-        let body_patterns = [
-            (r#"(?i)<meta\s+name="generator"\s+content="WordPress"#, "Meta Generator"),
-            (r"(?i)wp-content", "WP Content"),
-            (r"(?i)wp-includes", "WP Includes"),
-        ];
-
         let mut detections: Vec<&'static str> = Vec::new();
 
-        for (pattern, description) in &body_patterns {
-            let re = Regex::new(pattern).unwrap();
+        for (re, description) in BODY_PATTERNS.iter() {
             if re.is_match(http_inner.body()) {
                 info!("WordPress detected in body: {}", description);
-                detections.push(description);
+                detections.push(*description);
             }
         }
         
-        let api_pattern = r#"(?i)<link\s+rel=["']https://api\.w\.org/["']"#;
-        let re = Regex::new(api_pattern).unwrap();
-        if re.is_match(http_inner.body()) {
+        if API_PATTERN.is_match(http_inner.body()) {
             info!("WordPress detected: API Link found");
             detections.push("WordPress API Link");
         }
