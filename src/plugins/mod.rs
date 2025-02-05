@@ -1,9 +1,9 @@
-// SPDX-Identifier: MIT OR Apache-2.0
+// File: mod.rs (plugins module)
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //
 // Copyright (c) 2023
 // - Volker Schwaberow <volker@schwaberow.de>
 
-#![allow(dead_code)]
 pub mod apachebasic;
 pub mod nginxbasic;
 pub mod cloudflarebasic;
@@ -17,7 +17,7 @@ pub trait Plugin {
 }
 
 pub struct PluginHandler {
-    plugins: Vec<Box<dyn Plugin>>,
+    plugins: Vec<Box<dyn Plugin + Send + Sync>>,
 }
 
 impl PluginHandler {
@@ -41,7 +41,10 @@ impl PluginHandler {
     }
 
     pub fn list(&self) -> Vec<String> {
-        self.plugins.iter().map(|plugin| plugin.name().to_string()).collect()
+        self.plugins
+            .iter()
+            .map(|plugin| plugin.name().to_string())
+            .collect()
     }
 
     pub fn register_known_plugins(&mut self) {
