@@ -1,3 +1,4 @@
+// File: http.rs
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
 // Copyright (c) 2023
@@ -6,6 +7,7 @@
 use crate::config::ConfigParameter;
 use crate::getstate::GetState;
 use crate::httpinner::HttpInner;
+use futures::stream::{FuturesUnordered, StreamExt};
 use governor::{clock::DefaultClock, state::InMemoryState, state::NotKeyed, Quota, RateLimiter};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use reqwest::header::HeaderMap;
@@ -13,29 +15,33 @@ use std::fmt::Write;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{ops::Deref, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub struct Http {
-    pub state_ptr: GetState,
+    pub state_ptr: Arc<GetState>,
     pub config_ptr: ConfigParameter,
     rate_limiter: Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
+    client: reqwest::Client,
 }
 
 impl Http {
-    pub fn new(state_ptr: GetState, config_ptr: ConfigParameter, rate_limit: NonZeroU32) -> Self {
+    pub fn new(
+        state_ptr: Arc<GetState>,
+        config_ptr: ConfigParameter,
+        rate_limit: NonZeroU32,
+    ) -> Self {
+        let client = reqwest::Client::builder()
+            .build()
+            .expect("Failed to build reqwest client");
         Http {
             state_ptr,
             config_ptr,
             rate_limiter: Arc::new(RateLimiter::direct(Quota::per_second(rate_limit))),
+            client,
         }
     }
 
-    pub async fn work(&mut self, lines_vec: Rc<Vec<String>>) -> Vec<HttpInner> {
-        let mut tasks = Vec::new();
-        let time = self.config_ptr.timeout();
-        let ptr = lines_vec.deref().clone();
-
+    pub async fn work(&mut self, lines_vec: Arc<Vec<String>>) -> Vec<HttpInner> {
         let pb = ProgressBar::new(lines_vec.len() as u64);
         pb.set_style(
             ProgressStyle::with_template(
@@ -48,103 +54,84 @@ impl Http {
             .progress_chars("█▉▊▋▌▍▎▏  "),
         );
 
-        let mut intv = tokio::time::interval(Duration::from_millis(15));
+        let mut results = Vec::new();
+        let timeout = self.config_ptr.timeout();
+        let client = self.client.clone();
+        let rate_limiter = Arc::clone(&self.rate_limiter);
+        let state_ptr = Arc::clone(&self.state_ptr);
 
-        for line in ptr {
-            self.rate_limiter.until_ready().await;
+        let mut futures = FuturesUnordered::new();
 
-            let rate_limiter = Arc::clone(&self.rate_limiter);
-            let task = tokio::spawn(async move {
-                tokio::time::sleep(Duration::from_millis(50)).await;
+        for line in lines_vec.iter() {
+            let url = line.clone();
+            let client = client.clone();
+            let rate_limiter = Arc::clone(&rate_limiter);
+            let state_ptr = Arc::clone(&state_ptr);
+            futures.push(tokio::spawn(async move {
                 rate_limiter.until_ready().await;
-
-                if line.trim().is_empty() {
+                if url.trim().is_empty() {
                     return HttpInner::new_with_all(
                         HeaderMap::new(),
                         "Empty URL".to_string(),
                         0,
-                        "Empty URL".to_string(),
+                        url,
                         false,
                     );
                 }
 
-                let client = reqwest::Client::new();
-                let res = client
-                    .get(line)
-                    .timeout(std::time::Duration::from_secs(time))
+                let response = client
+                    .get(&url)
+                    .timeout(Duration::from_secs(timeout))
                     .send()
                     .await;
 
-                match res {
-                    Ok(myresp) => {
-                        let url = myresp.url().to_string();
-                        let status = myresp.status().as_u16();
-                        let headers = myresp.headers().clone();
-                        let body = myresp.text().await;
-
-                        match body {
-                            Ok(body_text) => HttpInner::new_with_all(
-                                headers,
-                                body_text,
-                                status,
-                                url,
-                                true,
-                            ),
+                match response {
+                    Ok(resp) => {
+                        let url = resp.url().to_string();
+                        let status = resp.status().as_u16();
+                        let headers = resp.headers().clone();
+                        match resp.text().await {
+                            Ok(body_text) => {
+                                state_ptr.add_success();
+                                HttpInner::new_with_all(headers, body_text, status, url, true)
+                            }
                             Err(e) => {
-                                let error_msg = format!("Failed to read body: {}", e);
-                                HttpInner::new_with_all(headers, error_msg, status, url, false)
+                                state_ptr.add_failure();
+                                HttpInner::new_with_all(
+                                    headers,
+                                    format!("Failed to read body: {}", e),
+                                    status,
+                                    url,
+                                    false,
+                                )
                             }
                         }
                     }
                     Err(e) => {
+                        state_ptr.add_failure();
                         let status_code = e.status().map_or(0, |s| s.as_u16());
                         let url = e
                             .url()
                             .map_or_else(|| "Unknown URL".to_string(), |u| u.to_string());
-                        let error_msg = format!("Error: {}", e);
-
-                        println!("Request failed for {}: {}", url, error_msg);
-
                         HttpInner::new_with_all(
                             HeaderMap::new(),
-                            error_msg,
+                            format!("Error: {}", e),
                             status_code,
                             url,
                             false,
                         )
                     }
                 }
-            });
-            tasks.push(task);
+            }));
         }
 
-        let mut http_vec: Vec<HttpInner> = Vec::new();
-
-        for task in tasks {
-            let rval = task.await;
-            if let Ok(rvalu) = rval {
-                if rvalu.success() {
-                    intv.tick().await;
-
-                    pb.inc(1);
-                    let http_inner = rvalu;
-                    http_vec.push(http_inner);
-                    self.state_ptr.add_success();
-                } else {
-                    intv.tick().await;
-
-                    pb.inc(1);
-                    let empty = "".to_string();
-                    let url = rvalu.url().to_string();
-                    let http_inner =
-                        HttpInner::new_with_all(HeaderMap::new(), empty, 0, url, false);
-
-                    http_vec.push(http_inner);
-                    self.state_ptr.add_failure();
-                }
+        while let Some(task) = futures.next().await {
+            if let Ok(result) = task {
+                results.push(result);
+                pb.inc(1);
             }
         }
         pb.finish();
-        http_vec
+        results
     }
 }
