@@ -8,6 +8,7 @@ pub mod apachebasic;
 pub mod nginxbasic;
 pub mod cloudflarebasic;
 pub mod wordpressbasic;
+pub mod phpbasic;
 
 use crate::httpinner::HttpInner;
 
@@ -52,5 +53,6 @@ impl PluginHandler {
         self.plugins.push(Box::new(nginxbasic::NginxBasicPlugin));
         self.plugins.push(Box::new(cloudflarebasic::CloudflareBasicPlugin));
         self.plugins.push(Box::new(wordpressbasic::WordpressBasicPlugin));
+        self.plugins.push(Box::new(phpbasic::PHPBasicPlugin));
     }
 }
