@@ -1,9 +1,11 @@
+// File: config.rs
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
 // Copyright (c) 2023
 // - Volker Schwaberow <volker@schwaberow.de>
 
 use std::num::NonZeroU32;
+
 #[derive(Debug, Clone, Copy)]
 pub struct ConfigParameter {
     print_failed: bool,
@@ -15,8 +17,8 @@ pub struct ConfigParameter {
     rate_limit: NonZeroU32,
 }
 
-impl ConfigParameter {
-    pub fn new() -> Self {
+impl Default for ConfigParameter {
+    fn default() -> Self {
         Self {
             print_failed: false,
             detect_all: false,
@@ -26,6 +28,12 @@ impl ConfigParameter {
             suppress_stats: false,
             rate_limit: NonZeroU32::new(100).unwrap(),
         }
+    }
+}
+
+impl ConfigParameter {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn set_print_failed(&mut self, print_failed: bool) {
@@ -89,5 +97,5 @@ impl ConfigParameter {
 
 #[allow(dead_code)]
 fn display_rate_limit(config: &ConfigParameter) {
-    println!("Current rate limit: {}", config.rate_limit);
+    println!("Current rate limit: {}", config.rate_limit());
 }
