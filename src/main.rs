@@ -9,6 +9,7 @@ mod getstate;
 mod http;
 mod httpinner;
 mod plugins;
+mod report;
 
 use chrono::{DateTime, TimeZone, Utc};
 use clap::{ArgGroup, Parser};
@@ -16,6 +17,7 @@ use colored::*;
 use config::ConfigParameter;
 use getstate::GetState;
 use http::Http;
+use report::{ReportEntry, ReportFormat, ReportGenerator};
 use std::env;
 use std::io::{self, BufRead, IsTerminal};
 use std::num::NonZeroU32;
@@ -60,6 +62,12 @@ struct Cli {
 
     #[arg(long = "plugin", help = "Specify a plugin to use", required = false)]
     plugin: Option<String>,
+
+    #[arg(long, default_value = "text")]
+    report_format: String,
+
+    #[arg(long)]
+    report_filename: Option<String>,
 }
 
 fn get_human_readable_time(time: u64) -> DateTime<Utc> {
@@ -157,6 +165,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let results = http.work(lines_vec).await;
 
     state.set_end_time(get_now());
+
+    let report_entries: Vec<ReportEntry> = results.iter().map(|r| {
+        let detections = if r.success() {
+            let plugins = plugins::PluginHandler::new();
+            let scan_result = if config_state.detect_all() {
+                plugins.run(r)
+            } else {
+                vec![]
+            };
+            scan_result
+        } else {
+            vec![]
+        };
+
+        ReportEntry {
+            url: r.url().to_string(),
+            status: r.status().to_string(),
+            detections: detections,
+        }
+    }).collect();
+
+    let report_format = match cli.report_format.to_lowercase().as_str() {
+        "json" => ReportFormat::Json,
+        _ => ReportFormat::Text,
+    };
+
+    let output_filename = match &cli.report_filename {
+        Some(name) => name.clone(),
+        None => match report_format {
+            ReportFormat::Json => "report_output.json".to_string(),
+            _ => "report_output.txt".to_string(),
+        },
+    };
+
+    ReportGenerator::generate_report(&report_entries, &output_filename, report_format)?;
 
     for r in results.iter() {
         if r.success() {
