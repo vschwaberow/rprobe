@@ -1,3 +1,4 @@
+// File: cloudflarebasic.rs
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
 // Copyright (c) 2024
@@ -6,10 +7,46 @@
 use crate::httpinner::HttpInner;
 use crate::plugins::Plugin;
 use log::info;
-use regex::Regex;
-use regex::RegexBuilder;
+use once_cell::sync::Lazy;
+use regex::{Regex, RegexBuilder};
 
 pub struct CloudflareBasicPlugin;
+
+static HEADER_PATTERNS: Lazy<Vec<(Regex, &str)>> = Lazy::new(|| {
+    vec![
+        (
+            RegexBuilder::new(r"^cloudflare$")
+                .case_insensitive(true)
+                .build()
+                .unwrap(),
+            "Server Header",
+        ),
+        (
+            RegexBuilder::new(r"^cloudflare/\d+\.\d+$")
+                .case_insensitive(true)
+                .build()
+                .unwrap(),
+            "Server Version Header",
+        ),
+        (Regex::new(r"^CF-RAY$").unwrap(), "CF-RAY Header"),
+        (Regex::new(r"^CF-Cache-Status$").unwrap(), "CF-Cache-Status Header"),
+        (Regex::new(r"^CF-Connecting-IP$").unwrap(), "CF-Connecting-IP Header"),
+    ]
+});
+
+static BODY_PATTERNS: Lazy<Vec<(Regex, &str)>> = Lazy::new(|| {
+    vec![
+        (
+            Regex::new(r"Attention Required!|Cloudflare").unwrap(),
+            "Cloudflare Challenge Page",
+        ),
+        (Regex::new(r"Error 1006").unwrap(), "Cloudflare Error 1006"),
+        (
+            Regex::new(r"Access denied|Cloudflare").unwrap(),
+            "Cloudflare Access Denied",
+        ),
+    ]
+});
 
 impl Plugin for CloudflareBasicPlugin {
     fn name(&self) -> &'static str {
@@ -17,49 +54,34 @@ impl Plugin for CloudflareBasicPlugin {
     }
 
     fn run(&self, http_inner: &HttpInner) -> Option<String> {
-        let header_patterns = [
-            (r"^cloudflare$", "Server Header"),
-            (r"^cloudflare/\d+\.\d+$", "Server Version Header"),
-            (r"^CF-RAY$", "CF-RAY Header"),
-            (r"^CF-Cache-Status$", "CF-Cache-Status Header"),
-            (r"^CF-Connecting-IP$", "CF-Connecting-IP Header"),
-        ];
-
-        let body_patterns = [
-            (r"Attention Required! | Cloudflare", "Cloudflare Challenge Page"),
-            (r"Error 1006", "Cloudflare Error 1006"),
-            (r"Access denied | Cloudflare", "Cloudflare Access Denied"),
-        ];
-
         let mut detections: Vec<&'static str> = Vec::new();
 
-        for (pattern, description) in &header_patterns {
-            if let Some(header_value) = http_inner.headers().get("Server") {
-                let server_value = header_value.to_str().unwrap_or("");
-                let re = RegexBuilder::new(pattern)
-                    .case_insensitive(true)
-                    .build()
-                    .unwrap();
+        // Check for headers in "Server"
+        if let Some(server_header_value) = http_inner.headers().get("Server") {
+            let server_value = server_header_value.to_str().unwrap_or("");
+            for (re, description) in HEADER_PATTERNS.iter() {
                 if re.is_match(server_value) {
                     info!("Cloudflare detected in header: {}", description);
-                    detections.push(description);
-                }
-            }
-
-            if let Some(header_value) = http_inner.headers().get(&*pattern.split("/").next().unwrap_or("")) {
-                let header_str = header_value.to_str().unwrap_or("");
-                if !header_str.is_empty() {
-                    info!("Cloudflare detected with header {}: {}", pattern, description);
-                    detections.push(description);
+                    detections.push(*description);
                 }
             }
         }
 
-        for (pattern, description) in &body_patterns {
-            let re = Regex::new(pattern).unwrap();
+        // Try checking headers by their name if present
+        for (pattern, description) in HEADER_PATTERNS.iter() {
+            if let Some(header_value) = http_inner.headers().get(pattern.as_str()) {
+                let header_str = header_value.to_str().unwrap_or("");
+                if !header_str.is_empty() {
+                    info!("Cloudflare detected with header {}: {}", pattern.as_str(), description);
+                    detections.push(*description);
+                }
+            }
+        }
+
+        for (re, description) in BODY_PATTERNS.iter() {
             if re.is_match(http_inner.body()) {
                 info!("Cloudflare detected in body: {}", description);
-                detections.push(description);
+                detections.push(*description);
             }
         }
 
@@ -76,11 +98,8 @@ impl Plugin for CloudflareBasicPlugin {
             ];
 
             detections.sort_by_key(|det| order.iter().position(|&o| o == *det).unwrap_or(order.len()));
-
             detections.dedup();
-
             let detection_message = detections.join(", ");
-
             Some(format!("Cloudflare Detected: {}", detection_message))
         } else {
             None

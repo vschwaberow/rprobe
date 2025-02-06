@@ -1,3 +1,4 @@
+// File: main.rs
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
 // Copyright (c) 2023
@@ -8,16 +9,19 @@ mod getstate;
 mod http;
 mod httpinner;
 mod plugins;
+mod report;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use clap::{ArgGroup, Parser};
+use colored::*;
 use config::ConfigParameter;
 use getstate::GetState;
 use http::Http;
+use report::{ReportEntry, ReportFormat, ReportGenerator};
 use std::env;
 use std::io::{self, BufRead, IsTerminal};
 use std::num::NonZeroU32;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -32,11 +36,7 @@ use std::rc::Rc;
     )
 )]
 struct Cli {
-    #[arg(
-        short = 't',
-        long = "timeout",
-        default_value_t = 10
-    )]
+    #[arg(short = 't', long = "timeout", default_value_t = 10)]
     timeout: u64,
 
     #[arg(short = 'n', long = "nohttp", conflicts_with = "nohttps")]
@@ -57,31 +57,30 @@ struct Cli {
     #[arg(short = 'p', long = "plugins")]
     list_plugins: bool,
 
-    #[arg(
-        short = 'r',
-        long = "rate-limit",
-        default_value_t = 10
-    )]
+    #[arg(short = 'r', long = "rate-limit", default_value_t = 10)]
     rate_limit: u32,
 
-    #[arg(
-        long = "plugin",
-        help = "Specify a plugin to use",
-        required = false
-    )]
+    #[arg(long = "plugin", help = "Specify a plugin to use", required = false)]
     plugin: Option<String>,
+
+    #[arg(long, default_value = "text")]
+    report_format: String,
+
+    #[arg(long)]
+    report_filename: Option<String>,
 }
 
 fn get_human_readable_time(time: u64) -> DateTime<Utc> {
-    DateTime::from_timestamp((time / 1000) as i64, 0).unwrap_or_else(|| {
-        std::process::exit(1);
-    })
+    match Utc.timestamp_opt((time / 1000) as i64, 0) {
+        chrono::LocalResult::Single(dt) => dt,
+        _ => panic!("Invalid timestamp"),
+    }
 }
 
-fn get_stdio_lines(_config_ptr: &ConfigParameter) -> Rc<Vec<String>> {
+fn get_stdio_lines(_config_ptr: &ConfigParameter) -> Arc<Vec<String>> {
     let stdin = io::stdin();
     let lines: Vec<String> = stdin.lock().lines().filter_map(Result::ok).collect();
-    Rc::new(lines)
+    Arc::new(lines)
 }
 
 fn check_for_stdin() {
@@ -111,7 +110,7 @@ fn print_prg_info() {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    let mut tokio_state = GetState::new();
+    let state = Arc::new(GetState::new());
     let mut config_state = ConfigParameter::new();
 
     check_for_stdin();
@@ -155,52 +154,94 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(0);
     }
 
-    let rate_limit =
-        NonZeroU32::new(cli.rate_limit).unwrap_or_else(|| NonZeroU32::new(10).unwrap());
+    let rate_limit = NonZeroU32::new(cli.rate_limit).unwrap_or_else(|| NonZeroU32::new(10).unwrap());
 
-    tokio_state.set_start_time(get_now());
-    let mut http = Http::new(tokio_state, config_state, rate_limit);
+    state.set_start_time(get_now());
+    let mut http = Http::new(Arc::clone(&state), config_state, rate_limit);
 
     let lines_vec = get_stdio_lines(&config_state);
-    http.state_ptr.set_total_requests(lines_vec.len() as u64);
+    state.set_total_requests(lines_vec.len() as u64);
 
     let results = http.work(lines_vec).await;
 
-    http.state_ptr.set_end_time(get_now());
+    state.set_end_time(get_now());
+
+    let report_entries: Vec<ReportEntry> = results.iter().map(|r| {
+        let detections = if r.success() {
+            let plugins = plugins::PluginHandler::new();
+            let scan_result = if config_state.detect_all() {
+                plugins.run(r)
+            } else {
+                vec![]
+            };
+            scan_result
+        } else {
+            vec![]
+        };
+
+        ReportEntry {
+            url: r.url().to_string(),
+            status: r.status().to_string(),
+            detections: detections,
+        }
+    }).collect();
+
+    let report_format = match cli.report_format.to_lowercase().as_str() {
+        "json" => ReportFormat::Json,
+        _ => ReportFormat::Text,
+    };
+
+    let output_filename = match &cli.report_filename {
+        Some(name) => name.clone(),
+        None => match report_format {
+            ReportFormat::Json => "report_output.json".to_string(),
+            _ => "report_output.txt".to_string(),
+        },
+    };
+
+    ReportGenerator::generate_report(&report_entries, &output_filename, report_format)?;
 
     for r in results.iter() {
         if r.success() {
             let plugins = plugins::PluginHandler::new();
             let scan_result = if let Some(plugin_name) = &cli.plugin {
-                plugins.run(r).into_iter().filter(|result| result.contains(plugin_name)).collect::<Vec<_>>()
+                plugins
+                    .run(r)
+                    .into_iter()
+                    .filter(|result| result.contains(plugin_name))
+                    .collect::<Vec<_>>()
             } else if config_state.detect_all() {
                 plugins.run(r)
             } else {
                 vec![]
             };
 
-            if !scan_result.is_empty() {
-                println!("{} {}", r.url(), scan_result.join(", "));
+            let status = format!("[{}]", r.status());
+            let output = if !scan_result.is_empty() {
+                format!(
+                    "{} {} {}",
+                    r.url().bold(),
+                    status.green(),
+                    scan_result.join(", ").italic()
+                )
             } else {
-                println!("{}", r.url());
-            }
-        } else {
-            if config_state.print_failed() {
-                println!("{} - failed request.", r.url());
-            }
+                format!("{} {}", r.url().bold(), status.green())
+            };
+            println!("{}", output);
+        } else if config_state.print_failed() {
+            println!("{} - failed request.", r.url().red())
         }
     }
 
     if !config_state.suppress_stats() {
-        let h = &mut http;
         println!(
             "{} requests. Started at {} / Ended at {}. {} ms. Successful: {}. Failed: {}.",
-            h.state_ptr.total_requests(),
-            get_human_readable_time(h.state_ptr.start_time()),
-            get_human_readable_time(h.state_ptr.end_time()),
-            h.state_ptr.end_time() - h.state_ptr.start_time(),
-            h.state_ptr.successful_requests(),
-            h.state_ptr.failed_requests()
+            state.total_requests(),
+            get_human_readable_time(state.start_time()),
+            get_human_readable_time(state.end_time()),
+            state.end_time() - state.start_time(),
+            state.successful_requests(),
+            state.failed_requests()
         );
     }
 
