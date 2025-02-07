@@ -11,7 +11,6 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use governor::{clock::DefaultClock, state::InMemoryState, state::NotKeyed, Quota, RateLimiter};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use reqwest::header::HeaderMap;
-use std::hash::Hash;
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
