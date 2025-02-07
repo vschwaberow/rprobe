@@ -68,6 +68,9 @@ struct Cli {
 
     #[arg(long)]
     report_filename: Option<String>,
+
+    #[arg(long)]
+    download_robots: bool,
 }
 
 fn get_human_readable_time(time: u64) -> DateTime<Utc> {
@@ -136,6 +139,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if cli.detect_all {
         config_state.set_detect_all(true);
     }
+
+    config_state.set_download_robots(cli.download_robots);
 
     if cli.list_plugins {
         let plugins = plugins::PluginHandler::new();
