@@ -24,14 +24,20 @@ A simple tool to probe a remote host http or https connection
 
 Usage: cat domains.txt | rprobe [options]
 Options:
-  -h, --help                    Print this help
-  -v, --version                 Print version information
-  -t, --timeout                 Set timeout in seconds (default: 10)
-  -n, --nohttp                  Do not probe http://
-  -N, --nohttps                 Do not probe https://
-  -S, --show-unresponsive       Show unresponsive hosts
-  -s, --suppress-stats          Suppress statistics
- -da, --detect-all              Run all detection plugins on hosts
+  -t, --timeout <TIMEOUT>                  [default: 10]
+  -n, --nohttp                             
+  -N, --nohttps                            
+  -S, --show-unresponsive                  
+  -s, --suppress-stats                     
+  -d, --detect-all                         
+  -p, --plugins                            
+  -r, --rate-limit <RATE_LIMIT>            [default: 10]
+      --plugin <PLUGIN>                    Specify a plugin to use
+      --report-format <REPORT_FORMAT>      [default: text]
+      --report-filename <REPORT_FILENAME>  
+      --download-robots                    
+  -h, --help                               Print help
+  -V, --version                            Print version
 
 ````
 
@@ -41,7 +47,8 @@ With version 0.5.0 I introduced a plugin probe system which allows to interpreta
 
 Possible are fingerprints of the response body, the response code and the response headers. This allows to detect a lot of different services running on remote hosts. 
 
-A basic Apache plugin is included in the source code. You can find it in the `plugins` directory.
+Several plugins are already included in the source code. 
+
 
 ## Contribution 
 
