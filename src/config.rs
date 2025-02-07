@@ -15,6 +15,7 @@ pub struct ConfigParameter {
     timeout: u64,
     suppress_stats: bool,
     rate_limit: NonZeroU32,
+    download_robots: bool,
 }
 
 impl Default for ConfigParameter {
@@ -27,6 +28,7 @@ impl Default for ConfigParameter {
             timeout: 10,
             suppress_stats: false,
             rate_limit: NonZeroU32::new(100).unwrap(),
+            download_robots: false,
         }
     }
 }
@@ -34,6 +36,14 @@ impl Default for ConfigParameter {
 impl ConfigParameter {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn set_download_robots(&mut self, download_robots: bool) {
+        self.download_robots = download_robots;
+    }
+
+    pub fn download_robots(&self) -> bool {
+        self.download_robots
     }
 
     pub fn set_print_failed(&mut self, print_failed: bool) {
