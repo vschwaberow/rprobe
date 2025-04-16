@@ -1,12 +1,11 @@
 // File: config.rs
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
-// Copyright (c) 2023
+// Copyright (c) 2023-2025
 // - Volker Schwaberow <volker@schwaberow.de>
 
-use std::num::NonZeroU32;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ConfigParameter {
     print_failed: bool,
     detect_all: bool,
@@ -14,8 +13,10 @@ pub struct ConfigParameter {
     https: bool,
     timeout: u64,
     suppress_stats: bool,
-    rate_limit: NonZeroU32,
     download_robots: bool,
+    screenshot: bool,
+    workers: u32,
+    output_dir: String,
 }
 
 impl Default for ConfigParameter {
@@ -27,8 +28,10 @@ impl Default for ConfigParameter {
             https: true,
             timeout: 10,
             suppress_stats: false,
-            rate_limit: NonZeroU32::new(100).unwrap(),
             download_robots: false,
+            screenshot: false,
+            workers: 10,
+            output_dir: "scan".to_string(),
         }
     }
 }
@@ -94,18 +97,27 @@ impl ConfigParameter {
         self.suppress_stats = suppress_stats;
     }
 
-    #[allow(dead_code)]
-    pub fn set_rate_limit(&mut self, rate: NonZeroU32) {
-        self.rate_limit = rate;
+    pub fn set_screenshot(&mut self, screenshot: bool) {
+        self.screenshot = screenshot;
     }
 
-    #[allow(dead_code)]
-    pub fn rate_limit(&self) -> NonZeroU32 {
-        self.rate_limit
+    pub fn screenshot(&self) -> bool {
+        self.screenshot
     }
-}
 
-#[allow(dead_code)]
-fn display_rate_limit(config: &ConfigParameter) {
-    println!("Current rate limit: {}", config.rate_limit());
+    pub fn set_workers(&mut self, workers: u32) {
+        self.workers = workers;
+    }
+
+    pub fn workers(&self) -> u32 {
+        self.workers
+    }
+
+    pub fn set_output_dir(&mut self, output_dir: String) {
+        self.output_dir = output_dir;
+    }
+
+    pub fn output_dir(&self) -> &str {
+        &self.output_dir
+    }
 }
