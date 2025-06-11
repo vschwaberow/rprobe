@@ -10,6 +10,14 @@ description = "A simple tool to probe a remote host http or https connection"
 keywords = ["rust", "network", "security", "network"]
 categories = ["command-line-utilities"]
 
+[[bin]]
+name = "rprobe"
+path = "src/main.rs"
+
+[lib]
+name = "rprobe"
+path = "src/lib.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [profile.release]
@@ -36,3 +44,12 @@ serde_json = "1.0.138"
 sha2 = "0.10.8"
 tempfile = "3.10.1" # Added tempfile
 # Other dependencies...
+
+[dev-dependencies]
+wiremock = "0.6"
+mockito = "1.5"
+tokio-test = "0.4"
+serial_test = "3.1"
+pretty_assertions = "1.4"
+rstest = "0.23"
+test-case = "3.3"
