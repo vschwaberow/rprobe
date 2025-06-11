@@ -121,3 +121,7 @@ impl ConfigParameter {
         &self.output_dir
     }
 }
+
+#[cfg(test)]
+#[path = "config_tests.rs"]
+mod tests;

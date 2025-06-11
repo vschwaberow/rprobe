@@ -408,3 +408,7 @@ impl ContentAnalyzer {
         findings
     }
 }
+
+#[cfg(test)]
+#[path = "content_analyzer_tests.rs"]
+mod tests;

@@ -11,6 +11,9 @@ pub mod wordpressbasic;
 pub mod laravel;
 pub mod phpbasic;
 
+// #[cfg(test)]
+// mod tests;
+
 use crate::httpinner::HttpInner;
 
 pub trait Plugin {

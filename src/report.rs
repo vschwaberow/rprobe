@@ -258,3 +258,7 @@ impl ReportGenerator {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "report_tests.rs"]
+mod tests;

@@ -456,3 +456,7 @@ impl TlsAnalyzer {
         Ok(results)
     }
 }
+
+#[cfg(test)]
+#[path = "tls_analyzer_tests.rs"]
+mod tests;
