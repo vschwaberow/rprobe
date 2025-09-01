@@ -4,7 +4,6 @@
 // Copyright (c) 2023-2025
 // - Volker Schwaberow <volker@schwaberow.de>
 
-
 #[derive(Debug, Clone)]
 pub struct ConfigParameter {
     print_failed: bool,

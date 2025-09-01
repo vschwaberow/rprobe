@@ -1,3 +1,9 @@
+// File: tests.rs
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//
+// Copyright (c) 2023-2025
+// - Volker Schwaberow <volker@schwaberow.de>
+
 use super::*;
 use crate::httpinner::HttpInner;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -6,12 +12,9 @@ use rstest::*;
 fn create_test_http_inner(body: &str, headers: Vec<(&'static str, &'static str)>) -> HttpInner {
     let mut header_map = HeaderMap::new();
     for (key, value) in headers {
-        header_map.insert(
-            key,
-            HeaderValue::from_str(value).unwrap(),
-        );
+        header_map.insert(key, HeaderValue::from_str(value).unwrap());
     }
-    
+
     HttpInner::new_with_all(
         header_map,
         body.to_string(),
@@ -23,11 +26,8 @@ fn create_test_http_inner(body: &str, headers: Vec<(&'static str, &'static str)>
 
 fn create_test_http_inner_dynamic(body: &str, key: &str, value: &str) -> HttpInner {
     let mut header_map = HeaderMap::new();
-    header_map.insert(
-        key,
-        HeaderValue::from_str(value).unwrap(),
-    );
-    
+    header_map.insert(key, HeaderValue::from_str(value).unwrap());
+
     HttpInner::new_with_all(
         header_map,
         body.to_string(),
@@ -66,7 +66,7 @@ mod plugin_handler_tests {
     fn test_plugin_handler_run_wordpress_detection() {
         let handler = PluginHandler::new();
         let http_inner = create_test_http_inner(
-            r#"<html><head><meta name="generator" content="WordPress 6.0"></head></html>"#,
+            r#"<html><head><meta name="generator" content="WordPress 6.0"></head></html>",
             vec![],
         );
         let results = handler.run(&http_inner);
@@ -85,11 +85,11 @@ mod plugin_handler_tests {
                     <div class="wp-content"></div>
                     <!-- Laravel app -->
                 </body>
-            </html>"#,
+            </html>",
             vec![("server", "Apache/2.4.41")],
         );
         let results = handler.run(&http_inner);
-        assert!(results.len() >= 2); // At least WordPress and Apache
+        assert!(results.len() >= 2); 
     }
 }
 
@@ -99,10 +99,16 @@ mod wordpress_plugin_tests {
     use wordpressbasic::WordpressBasicPlugin;
 
     #[rstest]
-    #[case(r#"<meta name="generator" content="WordPress 6.0">"#, "Meta Generator")]
-    #[case(r#"<link href="/wp-content/themes/twentytwenty/style.css">"#, "WP Content")]
-    #[case(r#"<script src="/wp-includes/js/jquery.js"></script>"#, "WP Includes")]
-    #[case(r#"<link rel='https://api.w.org/' href='https://example.com/wp-json/' />"#, "WordPress API Link")]
+    #[case(r#"<meta name="generator" content="WordPress 6.0">", "Meta Generator")]
+    #[case(
+        r#"<link href="/wp-content/themes/twentytwenty/style.css">",
+        "WP Content"
+    )]
+    #[case(r#"<script src="/wp-includes/js/jquery.js"></script>", "WP Includes")]
+    #[case(
+        r#"<link rel='https://api.w.org/' href='https://example.com/wp-json/' />",
+        "WordPress API Link"
+    )]
     fn test_wordpress_detection_patterns(#[case] html: &str, #[case] expected_detection: &str) {
         let plugin = WordpressBasicPlugin;
         let http_inner = create_test_http_inner(html, vec![]);
@@ -119,7 +125,7 @@ mod wordpress_plugin_tests {
                 <meta name="generator" content="WordPress 6.0">
                 <link href="/wp-content/themes/style.css">
                 <script src="/wp-includes/js/jquery.js"></script>
-            </html>"#,
+            </html>",
             vec![],
         );
         let result = plugin.run(&http_inner);
@@ -141,10 +147,8 @@ mod wordpress_plugin_tests {
     #[test]
     fn test_wordpress_case_insensitive() {
         let plugin = WordpressBasicPlugin;
-        let http_inner = create_test_http_inner(
-            r#"<META NAME="GENERATOR" CONTENT="WordPress 6.0">"#,
-            vec![],
-        );
+        let http_inner =
+            create_test_http_inner(r#"<META NAME="GENERATOR" CONTENT="WordPress 6.0">", vec![]);
         let result = plugin.run(&http_inner);
         assert!(result.is_some());
     }
@@ -161,7 +165,10 @@ mod apache_plugin_tests {
     #[case("Apache/2.4.41 (Ubuntu)", true)]
     #[case("nginx", false)]
     #[case("Microsoft-IIS/10.0", false)]
-    fn test_apache_server_header_detection(#[case] server_value: &str, #[case] should_detect: bool) {
+    fn test_apache_server_header_detection(
+        #[case] server_value: &str,
+        #[case] should_detect: bool,
+    ) {
         let plugin = ApacheBasicPlugin;
         let http_inner = create_test_http_inner_dynamic("", "server", server_value);
         let result = plugin.run(&http_inner);
@@ -174,10 +181,7 @@ mod apache_plugin_tests {
     #[test]
     fn test_apache_body_detection() {
         let plugin = ApacheBasicPlugin;
-        let http_inner = create_test_http_inner(
-            "<!-- Powered by Apache/2.4.41 -->",
-            vec![],
-        );
+        let http_inner = create_test_http_inner("<!-- Powered by Apache/2.4.41 -->", vec![]);
         let result = plugin.run(&http_inner);
         assert!(result.is_some());
         assert!(result.unwrap().contains("Apache"));
@@ -226,10 +230,8 @@ mod laravel_plugin_tests {
     #[test]
     fn test_laravel_csrf_token_detection() {
         let plugin = LaravelPlugin;
-        let http_inner = create_test_http_inner(
-            r#"<meta name="csrf-token" content="abc123">"#,
-            vec![],
-        );
+        let http_inner =
+            create_test_http_inner(r#"<meta name="csrf-token" content="abc123">", vec![]);
         let result = plugin.run(&http_inner);
         assert!(result.is_some());
         assert!(result.unwrap().contains("Laravel"));
@@ -244,7 +246,7 @@ mod laravel_plugin_tests {
                 <body class="laravel">
                     <!-- Laravel app content -->
                 </body>
-            </html>"#,
+            </html>",
             vec![("set-cookie", "laravel_session=xyz; path=/")],
         );
         let result = plugin.run(&http_inner);
@@ -279,10 +281,8 @@ mod php_plugin_tests {
     #[test]
     fn test_php_session_cookie_detection() {
         let plugin = PHPBasicPlugin;
-        let http_inner = create_test_http_inner(
-            "",
-            vec![("set-cookie", "PHPSESSID=abc123; path=/")],
-        );
+        let http_inner =
+            create_test_http_inner("", vec![("set-cookie", "PHPSESSID=abc123; path=/")]);
         let result = plugin.run(&http_inner);
         assert!(result.is_some());
         assert!(result.unwrap().contains("PHP"));
@@ -306,10 +306,7 @@ mod cloudflare_plugin_tests {
     #[test]
     fn test_cloudflare_ray_id_detection() {
         let plugin = CloudflareBasicPlugin;
-        let http_inner = create_test_http_inner(
-            "",
-            vec![("cf-ray", "7a1b2c3d4e5f6789-SJC")],
-        );
+        let http_inner = create_test_http_inner("", vec![("cf-ray", "7a1b2c3d4e5f6789-SJC")]);
         let result = plugin.run(&http_inner);
         assert!(result.is_some());
         assert!(result.unwrap().contains("Cloudflare"));
@@ -375,13 +372,10 @@ fn test_plugin_trait_object() {
             should_detect: false,
         }),
     ];
-    
+
     let http_inner = create_test_http_inner("", vec![]);
-    let results: Vec<_> = plugins
-        .iter()
-        .filter_map(|p| p.run(&http_inner))
-        .collect();
-    
+    let results: Vec<_> = plugins.iter().filter_map(|p| p.run(&http_inner)).collect();
+
     assert_eq!(results.len(), 1);
     assert_eq!(results[0], "Plugin1 detected");
 }

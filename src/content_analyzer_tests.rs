@@ -1,15 +1,15 @@
 // File: content_analyzer_tests.rs
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
-// Copyright (c) 2025
+// Copyright (c) 2023-2025
 // - Volker Schwaberow <volker@schwaberow.de>
 
 #[cfg(test)]
 mod tests {
     use crate::content_analyzer::*;
     use crate::httpinner::HttpInner;
-    use reqwest::header::HeaderMap;
     use pretty_assertions::assert_eq;
+    use reqwest::header::HeaderMap;
 
     fn create_test_http_inner(body: &str, success: bool) -> HttpInner {
         HttpInner::new_with_all(
@@ -35,7 +35,7 @@ mod tests {
         let content = "This is a test string with some sensitive data in the middle";
         let start = 26;
         let end = 39;
-        
+
         let context = extract_context(content, start, end, 10);
         assert!(context.contains("sensitive data"));
         assert!(context.contains("..."));
@@ -60,7 +60,7 @@ mod tests {
         let content = "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE";
         let http_inner = create_test_http_inner(content, true);
         let findings = ContentAnalyzer::analyze(&http_inner);
-        
+
         assert!(!findings.is_empty());
         let finding = &findings[0];
         assert_eq!(finding.category, "AWS Access Key");
@@ -74,7 +74,7 @@ mod tests {
         let content = "Contact us at admin@example.com or support@test.org";
         let http_inner = create_test_http_inner(content, true);
         let findings = ContentAnalyzer::analyze(&http_inner);
-        
+
         assert_eq!(findings.len(), 2);
         for finding in &findings {
             assert_eq!(finding.category, "Email Address");
@@ -87,7 +87,7 @@ mod tests {
         let content = "Server IP: 192.168.1.100, Gateway: 10.0.0.1";
         let http_inner = create_test_http_inner(content, true);
         let findings = ContentAnalyzer::analyze(&http_inner);
-        
+
         assert_eq!(findings.len(), 2);
         for finding in &findings {
             assert_eq!(finding.category, "Internal IP");
@@ -102,13 +102,15 @@ mod tests {
             Server: 192.168.1.100
         "#;
         let http_inner = create_test_http_inner(content, true);
-        
+
         let content_findings = ContentAnalyzer::analyze(&http_inner);
         assert!(content_findings.len() >= 2);
-        
-        let has_email = content_findings.iter().any(|f| f.category == "Email Address");
+
+        let has_email = content_findings
+            .iter()
+            .any(|f| f.category == "Email Address");
         let has_ip = content_findings.iter().any(|f| f.category == "Internal IP");
-        
+
         assert!(has_email && has_ip);
     }
 }

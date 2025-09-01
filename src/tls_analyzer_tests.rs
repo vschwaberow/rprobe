@@ -1,13 +1,13 @@
 // File: tls_analyzer_tests.rs
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
-// Copyright (c) 2025
+// Copyright (c) 2023-2025
 // - Volker Schwaberow <volker@schwaberow.de>
 
 #[cfg(test)]
 mod tests {
     use crate::tls_analyzer::*;
-    use chrono::{Duration, Datelike, Timelike, Utc};
+    use chrono::{Datelike, Duration, Timelike, Utc};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -106,19 +106,20 @@ Certificate:
             X509v3 Subject Alternative Name: 
                 DNS:example.com, DNS:www.example.com
 "#;
-        
+
         let tls_info = r#"
 SSL-Session:
     Protocol  : TLSv1.3
     Cipher    : TLS_AES_256_GCM_SHA384
 "#;
-        
+
         let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info.to_string(), 
-            tls_info.to_string(), 
-            "example.com"
-        ).unwrap();
-        
+            cert_info.to_string(),
+            tls_info.to_string(),
+            "example.com",
+        )
+        .unwrap();
+
         assert_eq!(cert.subject, "CN = example.com");
         assert_eq!(cert.issuer, "C = US, O = Let's Encrypt, CN = R3");
         assert_eq!(cert.version, "3 (0x2)");
@@ -129,7 +130,10 @@ SSL-Session:
         assert_eq!(cert.tls_version, "TLSv1.3");
         assert_eq!(cert.cipher_suite, "TLS_AES_256_GCM_SHA384");
         assert!(!cert.is_self_signed);
-        assert_eq!(cert.subject_alternative_names, vec!["DNS:example.com", "DNS:www.example.com"]);
+        assert_eq!(
+            cert.subject_alternative_names,
+            vec!["DNS:example.com", "DNS:www.example.com"]
+        );
     }
 
     #[test]
@@ -138,15 +142,15 @@ SSL-Session:
         Subject: CN = localhost
         Issuer: CN = localhost
 "#;
-        
-        let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info.to_string(), 
-            String::new(), 
-            "localhost"
-        ).unwrap();
-        
+
+        let cert =
+            TlsAnalyzer::parse_certificate_info(cert_info.to_string(), String::new(), "localhost")
+                .unwrap();
+
         assert!(cert.is_self_signed);
-        assert!(cert.warnings.contains(&"Certificate is self-signed".to_string()));
+        assert!(cert
+            .warnings
+            .contains(&"Certificate is self-signed".to_string()));
     }
 
     #[test]
@@ -154,14 +158,18 @@ SSL-Session:
         let cert_info = r#"
         Signature Algorithm: sha1WithRSAEncryption
 "#;
-        
+
         let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info.to_string(), 
-            String::new(), 
-            "example.com"
-        ).unwrap();
-        
-        assert!(cert.warnings.iter().any(|w| w.contains("Weak signature algorithm")));
+            cert_info.to_string(),
+            String::new(),
+            "example.com",
+        )
+        .unwrap();
+
+        assert!(cert
+            .warnings
+            .iter()
+            .any(|w| w.contains("Weak signature algorithm")));
     }
 
     #[test]
@@ -171,13 +179,14 @@ SSL-Session:
             Public Key Algorithm: RSAEncryption
                 Public-Key: 1024 bit
 "#;
-        
+
         let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info.to_string(), 
-            String::new(), 
-            "example.com"
-        ).unwrap();
-        
+            cert_info.to_string(),
+            String::new(),
+            "example.com",
+        )
+        .unwrap();
+
         assert_eq!(cert.key_size, Some(1024));
         assert!(cert.warnings.iter().any(|w| w.contains("Weak key size")));
     }
@@ -188,13 +197,11 @@ SSL-Session:
     Protocol  : TLSv1.1
     Cipher    : AES256-SHA
 "#;
-        
-        let cert = TlsAnalyzer::parse_certificate_info(
-            String::new(), 
-            tls_info.to_string(), 
-            "example.com"
-        ).unwrap();
-        
+
+        let cert =
+            TlsAnalyzer::parse_certificate_info(String::new(), tls_info.to_string(), "example.com")
+                .unwrap();
+
         assert_eq!(cert.tls_version, "TLSv1.1");
         assert!(cert.warnings.iter().any(|w| w.contains("Weak TLS version")));
     }
@@ -204,31 +211,32 @@ SSL-Session:
         let tls_info = r#"
     Cipher    : DES-CBC3-SHA
 "#;
-        
-        let cert = TlsAnalyzer::parse_certificate_info(
-            String::new(), 
-            tls_info.to_string(), 
-            "example.com"
-        ).unwrap();
-        
-        assert!(cert.warnings.iter().any(|w| w.contains("Weak cipher suite")));
+
+        let cert =
+            TlsAnalyzer::parse_certificate_info(String::new(), tls_info.to_string(), "example.com")
+                .unwrap();
+
+        assert!(cert
+            .warnings
+            .iter()
+            .any(|w| w.contains("Weak cipher suite")));
     }
 
     #[test]
     fn test_parse_certificate_info_expired() {
         let past_date = Utc::now() - Duration::days(30);
-        let cert_info = format!(r#"
+        let cert_info = format!(
+            r#"
         Validity
             Not Before: Jan 1 00:00:00 2020 GMT
             Not After : {} GMT
-"#, past_date.format("%b %d %H:%M:%S %Y"));
-        
-        let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info, 
-            String::new(), 
-            "example.com"
-        ).unwrap();
-        
+"#,
+            past_date.format("%b %d %H:%M:%S %Y")
+        );
+
+        let cert =
+            TlsAnalyzer::parse_certificate_info(cert_info, String::new(), "example.com").unwrap();
+
         assert!(cert.is_expired);
         assert!(cert.errors.contains(&"Certificate has expired".to_string()));
         assert!(cert.days_until_expiry < 0);
@@ -237,20 +245,23 @@ SSL-Session:
     #[test]
     fn test_parse_certificate_info_expires_soon() {
         let future_date = Utc::now() + Duration::days(15);
-        let cert_info = format!(r#"
+        let cert_info = format!(
+            r#"
         Validity
             Not Before: Jan 1 00:00:00 2020 GMT
             Not After : {} GMT
-"#, future_date.format("%b %d %H:%M:%S %Y"));
-        
-        let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info, 
-            String::new(), 
-            "example.com"
-        ).unwrap();
-        
+"#,
+            future_date.format("%b %d %H:%M:%S %Y")
+        );
+
+        let cert =
+            TlsAnalyzer::parse_certificate_info(cert_info, String::new(), "example.com").unwrap();
+
         assert!(!cert.is_expired);
-        assert!(cert.warnings.iter().any(|w| w.contains("Certificate expires soon")));
+        assert!(cert
+            .warnings
+            .iter()
+            .any(|w| w.contains("Certificate expires soon")));
         assert!(cert.days_until_expiry > 0 && cert.days_until_expiry < 30);
     }
 
@@ -260,15 +271,19 @@ SSL-Session:
             X509v3 Subject Alternative Name: 
                 DNS:*.example.com, DNS:example.com
 "#;
-        
+
         let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info.to_string(), 
-            String::new(), 
-            "sub.example.com"
-        ).unwrap();
-        
+            cert_info.to_string(),
+            String::new(),
+            "sub.example.com",
+        )
+        .unwrap();
+
         assert!(cert.is_wildcard);
-        assert_eq!(cert.subject_alternative_names, vec!["DNS:*.example.com", "DNS:example.com"]);
+        assert_eq!(
+            cert.subject_alternative_names,
+            vec!["DNS:*.example.com", "DNS:example.com"]
+        );
     }
 
     #[test]
@@ -277,14 +292,18 @@ SSL-Session:
             X509v3 Subject Alternative Name: 
                 DNS:example.com, DNS:www.example.com
 "#;
-        
+
         let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info.to_string(), 
-            String::new(), 
-            "different.com"
-        ).unwrap();
-        
-        assert!(cert.errors.iter().any(|e| e.contains("Host different.com not found in certificate SANs")));
+            cert_info.to_string(),
+            String::new(),
+            "different.com",
+        )
+        .unwrap();
+
+        assert!(cert
+            .errors
+            .iter()
+            .any(|e| e.contains("Host different.com not found in certificate SANs")));
     }
 
     #[test]
@@ -292,13 +311,14 @@ SSL-Session:
         let cert_info = r#"
         Subject: jurisdictionC=US, businessCategory=Private Organization, CN = example.com
 "#;
-        
+
         let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info.to_string(), 
-            String::new(), 
-            "example.com"
-        ).unwrap();
-        
+            cert_info.to_string(),
+            String::new(),
+            "example.com",
+        )
+        .unwrap();
+
         assert!(cert.is_extended_validation);
     }
 
@@ -309,16 +329,17 @@ SSL-Session:
             Public Key Algorithm: ECPublicKey
                 Public-Key: 256 bit
 "#;
-        
+
         let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info.to_string(), 
-            String::new(), 
-            "example.com"
-        ).unwrap();
-        
+            cert_info.to_string(),
+            String::new(),
+            "example.com",
+        )
+        .unwrap();
+
         assert_eq!(cert.key_type, "ECPublicKey");
         assert_eq!(cert.key_size, Some(256));
-        assert!(cert.warnings.is_empty()); 
+        assert!(cert.warnings.is_empty());
     }
 
     #[test]
@@ -328,13 +349,14 @@ SSL-Session:
             Public Key Algorithm: ECPublicKey
                 Public-Key: 224 bit
 "#;
-        
+
         let cert = TlsAnalyzer::parse_certificate_info(
-            cert_info.to_string(), 
-            String::new(), 
-            "example.com"
-        ).unwrap();
-        
+            cert_info.to_string(),
+            String::new(),
+            "example.com",
+        )
+        .unwrap();
+
         assert!(cert.warnings.iter().any(|w| w.contains("Weak EC key size")));
     }
 
@@ -353,15 +375,15 @@ SSL-Session:
 
     #[test]
     fn test_get_certificate_native() {
-        
         let result = TlsAnalyzer::get_certificate_native("https://example.com");
-        
-        
-        
+
         assert!(result.is_ok() || result.is_err());
-        
+
         if let Ok(cert) = result {
-            assert!(cert.warnings.iter().any(|w| w.contains("Limited certificate information")));
+            assert!(cert
+                .warnings
+                .iter()
+                .any(|w| w.contains("Limited certificate information")));
         }
     }
 
@@ -375,10 +397,9 @@ SSL-Session:
     #[test]
     fn test_comprehensive_assessment_invalid_scheme() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let result = rt.block_on(async {
-            TlsAnalyzer::comprehensive_assessment("http://example.com").await
-        });
-        
+        let result = rt
+            .block_on(async { TlsAnalyzer::comprehensive_assessment("http://example.com").await });
+
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("HTTPS scheme"));
     }
