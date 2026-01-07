@@ -50,7 +50,7 @@ rand = "0.8" # Random number generation for markers
 tokio-rustls = "0.24" # TLS support for raw TCP connections
 rustls = "0.21" # TLS implementation
 webpki-roots = "0.25" # Root certificates for TLS
-lru = "0.12" # LRU cache for bounded memory collections
+lru = "0.16" # LRU cache for bounded memory collections
 # Storage layer dependencies
 sled = { version = "0.34", features = ["compression"] } # Embedded database (alternative to RocksDB for simplicity)
 bincode = "1.3" # Efficient binary serialization
