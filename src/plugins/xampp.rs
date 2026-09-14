@@ -22,10 +22,10 @@ static OS_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 static META_AUTHOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"<meta name=\"author\" content=\"Kai Oswald Seidler\">"#).unwrap());
+    Lazy::new(|| Regex::new(r#"<meta name="author" content="Kai Oswald Seidler">"#).unwrap());
 
 static SECURITY_CONCEPT_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"<p style=\"margin-left: 2\\.6em; font-size: 1\\.2em; color: red;\">New XAMPP security concept:</p>"#).unwrap()
+    Regex::new(r#"<p style="margin-left: 2\.6em; font-size: 1\.2em; color: red;">New XAMPP security concept:</p>"#).unwrap()
 });
 
 static WELCOME_TEXT_REGEX: Lazy<Regex> =
@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn test_meta_author_detection() {
         let plugin = XamppPlugin;
-        let body = r#"<meta name=\"author\" content=\"Kai Oswald Seidler\">"#.to_string();
+        let body = r#"<meta name="author" content="Kai Oswald Seidler">"#.to_string();
         let http_inner = create_test_http_inner(HeaderMap::new(), body, 200);
 
         let result = plugin.run(&http_inner);
@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn test_security_concept_detection() {
         let plugin = XamppPlugin;
-        let body = r#"<p style=\"margin-left: 2.6em; font-size: 1.2em; color: red;\">New XAMPP security concept:</p>"#.to_string();
+        let body = r#"<p style="margin-left: 2.6em; font-size: 1.2em; color: red;">New XAMPP security concept:</p>"#.to_string();
         let http_inner = create_test_http_inner(HeaderMap::new(), body, 403);
 
         let result = plugin.run(&http_inner);
@@ -401,7 +401,7 @@ mod tests {
         let plugin = XamppPlugin;
         let body = r#"
             <title>XAMPP Version 8.1.6</title>
-            <meta name=\"author\" content=\"Kai Oswald Seidler\">
+            <meta name="author" content="Kai Oswald Seidler">
             Welcome to XAMPP!
         "#
         .to_string();

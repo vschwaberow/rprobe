@@ -47,8 +47,8 @@ use uuid::Uuid;
 
 use cli::{is_legacy_mode, merge_legacy_args, Cli, Commands};
 use commands::{
-    handle_clean_command, handle_compare_command, handle_history_command, handle_output_command,
-    handle_stats_command,
+    handle_clean_command, handle_compare_command, handle_history_command, handle_migrate_command,
+    handle_output_command, handle_stats_command,
 };
 use storage::{HistoryDatabase, ScanRecord, ScanSession};
 
@@ -178,7 +178,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         eprintln!("Failed to configure logging: {}", e);
     }
 
-    let db = if !cli.no_store_history || !is_legacy_mode(&cli) {
+    let is_migrate = matches!(&cli.command, Some(Commands::Migrate(_)));
+    let db = if is_migrate {
+        // Open without auto-migrate so --dry-run can inspect legacy data.
+        Some(HistoryDatabase::open_at(
+            HistoryDatabase::resolve_path(cli.data_dir.clone()),
+            false,
+        )?)
+    } else if !cli.no_store_history || !is_legacy_mode(&cli) {
         Some(HistoryDatabase::new(cli.data_dir.clone())?)
     } else {
         None
@@ -221,6 +228,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let database =
                 db.ok_or_else(|| anyhow::anyhow!("Database not initialized for stats command"))?;
             return handle_stats_command(args, &database)
+                .await
+                .map_err(Into::into);
+        }
+        Some(Commands::Migrate(args)) => {
+            let mut database =
+                db.ok_or_else(|| anyhow::anyhow!("Database not initialized for migrate command"))?;
+            return handle_migrate_command(args, &mut database)
                 .await
                 .map_err(Into::into);
         }

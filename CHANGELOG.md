@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Note: Version headings intentionally omit release dates. Refer to Git history or tagged releases for timestamps.
 
+## [0.10.0]
+
+### Changed
+- Bumped crate version to **0.10.0**.
+- Upgraded dependencies to current stable releases, including:
+  - `reqwest` 0.13, `rustls` 0.23, `tokio-rustls` 0.26, `webpki-roots` 1.x
+  - `governor` 0.10, `indicatif` 0.18, `thiserror` 2, `rand` 0.10, `dirs` 7, `lru` 0.18, `sha2` 0.11
+  - `clap`, `serde`, `uuid`, and other compatible crates via `cargo upgrade`
+- History storage encoding moved from **bincode 1** to **bincode 2** (`bincode::serde` + standard config).
+  - Note: `bincode` 3.0.0 is an intentional unmaintained tombstone and is **not** used; encoding is pinned to `=2.0.1`.
+- Desync scanner TLS client updated for rustls 0.23 / webpki-roots 1 (ring crypto provider).
+
+### Added
+- History DB **schema versioning** (`meta/schema_version`, current schema **v2**).
+- Automatic migration from schema v1 → v2 on database open (with pre-migration backup).
+- CLI subcommand `rprobe migrate` (`--dry-run`, `--force`) for explicit history migration.
+- `ConfigParameter::allow_internal_addresses` for authorized localhost/private probing (used by integration tests with wiremock).
+
+### Fixed
+- XAMPP / X-Headers detection tests and patterns with broken HTML escapes under newer `regex`.
+- Over-escaped Auth Token content-analysis pattern.
+- Report summary test expecting HTTP 404 as a failed scan (failed scans are connection failures / `"Failed"` / `"0"`).
+
 ## [0.9.0]
 
 ### Added

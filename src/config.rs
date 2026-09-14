@@ -16,6 +16,7 @@ pub struct ConfigParameter {
     screenshot: bool,
     workers: u32,
     output_dir: String,
+    allow_internal_addresses: bool,
 }
 
 impl Default for ConfigParameter {
@@ -31,6 +32,7 @@ impl Default for ConfigParameter {
             screenshot: false,
             workers: 10,
             output_dir: "scan".to_string(),
+            allow_internal_addresses: false,
         }
     }
 }
@@ -118,6 +120,14 @@ impl ConfigParameter {
 
     pub fn output_dir(&self) -> &str {
         &self.output_dir
+    }
+
+    pub fn set_allow_internal_addresses(&mut self, allow: bool) {
+        self.allow_internal_addresses = allow;
+    }
+
+    pub fn allow_internal_addresses(&self) -> bool {
+        self.allow_internal_addresses
     }
 }
 

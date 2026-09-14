@@ -101,6 +101,8 @@ pub enum Commands {
     Compare(CompareArgs),
     Clean(CleanArgs),
     Stats(StatsArgs),
+    /// Migrate history database to the current on-disk schema
+    Migrate(MigrateArgs),
 }
 
 #[derive(Args, Debug)]
@@ -318,6 +320,21 @@ pub struct StatsArgs {
 
     #[arg(long = "top-n", default_value_t = 10)]
     pub top_n: usize,
+}
+
+#[derive(Args, Debug)]
+pub struct MigrateArgs {
+    #[arg(
+        long = "dry-run",
+        help = "Show what would be migrated without rewriting the database"
+    )]
+    pub dry_run: bool,
+
+    #[arg(
+        long = "force",
+        help = "Run migration even if auto-migration already applied checks"
+    )]
+    pub force: bool,
 }
 
 impl OutputArgs {

@@ -7,13 +7,40 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use dirs::data_local_dir;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sled::{Config, Db};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::content_analyzer::{ContentFinding, FindingSeverity};
 use crate::desync_scanner::DesyncResult;
+
+/// Current on-disk value encoding: bincode 2 (`bincode::serde` + standard config).
+pub const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION_KEY: &[u8] = b"schema_version";
+const META_TREE: &[u8] = b"meta";
+
+fn bincode_config() -> impl bincode::config::Config {
+    bincode::config::standard()
+}
+
+fn encode_value<T: Serialize>(value: &T) -> Result<Vec<u8>> {
+    bincode::serde::encode_to_vec(value, bincode_config()).context("Failed to serialize value")
+}
+
+fn decode_value_v2<T: DeserializeOwned>(bytes: &[u8]) -> Result<T> {
+    let (value, _) = bincode::serde::decode_from_slice(bytes, bincode_config())
+        .context("Failed to deserialize value (schema v2)")?;
+    Ok(value)
+}
+
+fn decode_value_v1<T: DeserializeOwned>(bytes: &[u8]) -> Result<T> {
+    bincode1::deserialize(bytes).context("Failed to deserialize value (schema v1)")
+}
+
+fn decode_value<T: DeserializeOwned>(bytes: &[u8]) -> Result<T> {
+    decode_value_v2(bytes).or_else(|_| decode_value_v1(bytes))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanRecord {
@@ -96,24 +123,44 @@ pub struct ComparisonResult {
     pub changes: Vec<String>,
 }
 
+
+#[derive(Debug, Clone)]
+pub struct MigrationReport {
+    pub from_version: u32,
+    pub to_version: u32,
+    pub scans_migrated: u64,
+    pub sessions_migrated: u64,
+    pub backup_path: Option<PathBuf>,
+    pub dry_run: bool,
+    pub skipped: bool,
+}
+
 pub struct HistoryDatabase {
     db: Db,
+    db_path: PathBuf,
     scans_tree: sled::Tree,
     sessions_tree: sled::Tree,
     url_index_tree: sled::Tree,
+    meta_tree: sled::Tree,
 }
 
 impl HistoryDatabase {
-    pub fn new(data_dir: Option<PathBuf>) -> Result<Self> {
-        let db_path = match data_dir {
+    pub fn resolve_path(data_dir: Option<PathBuf>) -> PathBuf {
+        match data_dir {
             Some(dir) => dir.join("rprobe_history"),
             None => data_local_dir()
                 .or_else(|| Some(PathBuf::from(".")))
                 .unwrap()
                 .join("rprobe")
                 .join("history"),
-        };
+        }
+    }
 
+    pub fn new(data_dir: Option<PathBuf>) -> Result<Self> {
+        Self::open_at(Self::resolve_path(data_dir), true)
+    }
+
+    pub fn open_at(db_path: PathBuf, auto_migrate: bool) -> Result<Self> {
         std::fs::create_dir_all(&db_path).context("Failed to create database directory")?;
 
         let db = Config::default()
@@ -131,18 +178,172 @@ impl HistoryDatabase {
         let url_index_tree = db
             .open_tree(b"url_index")
             .context("Failed to open URL index tree")?;
+        let meta_tree = db
+            .open_tree(META_TREE)
+            .context("Failed to open meta tree")?;
 
-        Ok(Self {
+        let mut this = Self {
             db,
+            db_path,
             scans_tree,
             sessions_tree,
             url_index_tree,
+            meta_tree,
+        };
+
+        if auto_migrate {
+            this.ensure_current_schema(false)?;
+        }
+
+        Ok(this)
+    }
+
+    pub fn schema_version(&self) -> Result<u32> {
+        match self.meta_tree.get(SCHEMA_VERSION_KEY)? {
+            Some(bytes) if bytes.len() == 4 => {
+                let mut arr = [0u8; 4];
+                arr.copy_from_slice(&bytes);
+                Ok(u32::from_le_bytes(arr))
+            }
+            Some(_) => anyhow::bail!("Corrupt schema_version metadata"),
+            None => {
+                // Legacy DBs (pre-0.10) have no marker. Empty DBs start at current.
+                if self.scans_tree.is_empty() && self.sessions_tree.is_empty() {
+                    Ok(SCHEMA_VERSION)
+                } else {
+                    Ok(1)
+                }
+            }
+        }
+    }
+
+    fn write_schema_version(&self, version: u32) -> Result<()> {
+        self.meta_tree
+            .insert(SCHEMA_VERSION_KEY, &version.to_le_bytes())
+            .context("Failed to write schema_version")?;
+        self.db.flush().context("Failed to flush after schema_version write")?;
+        Ok(())
+    }
+
+    pub fn ensure_current_schema(&mut self, dry_run: bool) -> Result<MigrationReport> {
+        let current = self.schema_version()?;
+        if current == SCHEMA_VERSION {
+            if current != SCHEMA_VERSION {
+                // unreachable
+            }
+            // Fresh empty DBs without meta still need the marker written.
+            if self.meta_tree.get(SCHEMA_VERSION_KEY)?.is_none() {
+                if !dry_run {
+                    self.write_schema_version(SCHEMA_VERSION)?;
+                }
+            }
+            return Ok(MigrationReport {
+                from_version: current,
+                to_version: SCHEMA_VERSION,
+                scans_migrated: 0,
+                sessions_migrated: 0,
+                backup_path: None,
+                dry_run,
+                skipped: true,
+            });
+        }
+
+        if current > SCHEMA_VERSION {
+            anyhow::bail!(
+                "Database schema version {} is newer than supported version {}",
+                current,
+                SCHEMA_VERSION
+            );
+        }
+
+        self.migrate_v1_to_v2(dry_run)
+    }
+
+    pub fn migrate_v1_to_v2(&mut self, dry_run: bool) -> Result<MigrationReport> {
+        let from_version = self.schema_version()?;
+        if from_version >= SCHEMA_VERSION {
+            return Ok(MigrationReport {
+                from_version,
+                to_version: SCHEMA_VERSION,
+                scans_migrated: 0,
+                sessions_migrated: 0,
+                backup_path: None,
+                dry_run,
+                skipped: true,
+            });
+        }
+
+        let backup_path = if dry_run {
+            None
+        } else {
+            let stamp = Utc::now().format("%Y%m%d%H%M%S");
+            let path = self
+                .db_path
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join(format!("rprobe_history.pre-v2-backup-{}", stamp));
+            self.backup_database(path.to_str().unwrap())?;
+            Some(path)
+        };
+
+        let mut scans_migrated = 0u64;
+        let mut sessions_migrated = 0u64;
+
+        for result in self.scans_tree.iter() {
+            let (key, value) = result.context("Failed to iterate scans during migration")?;
+            let record: ScanRecord = decode_value_v1(&value)
+                .with_context(|| {
+                    format!(
+                        "Failed to decode legacy scan {}",
+                        String::from_utf8_lossy(&key)
+                    )
+                })?;
+            if !dry_run {
+                let encoded = encode_value(&record)?;
+                self.scans_tree
+                    .insert(key, encoded)
+                    .context("Failed to rewrite migrated scan")?;
+            }
+            scans_migrated += 1;
+        }
+
+        for result in self.sessions_tree.iter() {
+            let (key, value) = result.context("Failed to iterate sessions during migration")?;
+            let session: ScanSession = decode_value_v1(&value)
+                .with_context(|| {
+                    format!(
+                        "Failed to decode legacy session {}",
+                        String::from_utf8_lossy(&key)
+                    )
+                })?;
+            if !dry_run {
+                let encoded = encode_value(&session)?;
+                self.sessions_tree
+                    .insert(key, encoded)
+                    .context("Failed to rewrite migrated session")?;
+            }
+            sessions_migrated += 1;
+        }
+
+        if !dry_run {
+            self.write_schema_version(SCHEMA_VERSION)?;
+            self.db.flush().context("Failed to flush after migration")?;
+        }
+
+        Ok(MigrationReport {
+            from_version,
+            to_version: SCHEMA_VERSION,
+            scans_migrated,
+            sessions_migrated,
+            backup_path,
+            dry_run,
+            skipped: false,
         })
     }
 
     pub fn store_scan(&self, record: &ScanRecord) -> Result<()> {
         let key = format!("{}_{}", record.timestamp.timestamp_millis(), record.id);
-        let value = bincode::serialize(record).context("Failed to serialize scan record")?;
+        let value = encode_value(record).context("Failed to serialize scan record")?;
 
         self.scans_tree
             .insert(key.as_bytes(), value)
@@ -168,7 +369,7 @@ impl HistoryDatabase {
 
         for record in records {
             let key = format!("{}_{}", record.timestamp.timestamp_millis(), record.id);
-            let value = bincode::serialize(record).context("Failed to serialize scan record")?;
+            let value = encode_value(record).context("Failed to serialize scan record")?;
 
             scan_batch.insert(key.as_bytes(), value);
 
@@ -195,7 +396,7 @@ impl HistoryDatabase {
 
     pub fn store_session(&self, session: &ScanSession) -> Result<()> {
         let key = format!("{}_{}", session.timestamp.timestamp_millis(), session.id);
-        let value = bincode::serialize(session).context("Failed to serialize scan session")?;
+        let value = encode_value(session).context("Failed to serialize scan session")?;
 
         self.sessions_tree
             .insert(key.as_bytes(), value)
@@ -211,7 +412,7 @@ impl HistoryDatabase {
         for result in self.scans_tree.iter() {
             let (_, value) = result.context("Failed to iterate over scans")?;
             let record: ScanRecord =
-                bincode::deserialize(&value).context("Failed to deserialize scan record")?;
+                decode_value(&value).context("Failed to deserialize scan record")?;
 
             if self.matches_query(&record, query) {
                 results.push(record);
@@ -240,7 +441,7 @@ impl HistoryDatabase {
                 .get(scan_key)
                 .context("Failed to get scan from index")?
             {
-                let record: ScanRecord = bincode::deserialize(&scan_data)
+                let record: ScanRecord = decode_value(&scan_data)
                     .context("Failed to deserialize indexed scan")?;
                 results.push(record);
             }
@@ -306,7 +507,7 @@ impl HistoryDatabase {
         for result in self.scans_tree.iter() {
             let (key, value) = result.context("Failed to iterate during cleanup")?;
             let record: ScanRecord =
-                bincode::deserialize(&value).context("Failed to deserialize for cleanup")?;
+                decode_value(&value).context("Failed to deserialize for cleanup")?;
 
             if record.timestamp.timestamp_millis() < cutoff_timestamp {
                 keys_to_delete.push(key.to_vec());
@@ -323,7 +524,7 @@ impl HistoryDatabase {
         let mut session_keys_to_delete = Vec::new();
         for result in self.sessions_tree.iter() {
             let (key, value) = result.context("Failed to iterate sessions during cleanup")?;
-            let session: ScanSession = bincode::deserialize(&value)
+            let session: ScanSession = decode_value(&value)
                 .context("Failed to deserialize session for cleanup")?;
 
             if session.timestamp.timestamp_millis() < cutoff_timestamp {
@@ -430,7 +631,7 @@ impl HistoryDatabase {
         for result in self.scans_tree.iter() {
             let (key, value) = result.context("Failed to iterate scans for integrity check")?;
 
-            if bincode::deserialize::<ScanRecord>(&value).is_err() {
+            if decode_value::<ScanRecord>(&value).is_err() {
                 issues.push(format!(
                     "Corrupted scan record with key: {}",
                     String::from_utf8_lossy(&key)
@@ -441,7 +642,7 @@ impl HistoryDatabase {
         for result in self.sessions_tree.iter() {
             let (key, value) = result.context("Failed to iterate sessions for integrity check")?;
 
-            if bincode::deserialize::<ScanSession>(&value).is_err() {
+            if decode_value::<ScanSession>(&value).is_err() {
                 issues.push(format!(
                     "Corrupted session record with key: {}",
                     String::from_utf8_lossy(&key)
@@ -528,7 +729,7 @@ impl HistoryDatabase {
                 .get(scan_key)
                 .context("Failed to get scan by timestamp")?
             {
-                let record: ScanRecord = bincode::deserialize(&scan_data)
+                let record: ScanRecord = decode_value(&scan_data)
                     .context("Failed to deserialize timestamped scan")?;
 
                 let diff = (record.timestamp.timestamp_millis() - timestamp_ms).abs();
@@ -643,7 +844,7 @@ impl HistoryDatabase {
         for result in self.scans_tree.iter() {
             let (key, value) = result.context("Failed to iterate for index rebuild")?;
             let record: ScanRecord =
-                bincode::deserialize(&value).context("Failed to deserialize for index rebuild")?;
+                decode_value(&value).context("Failed to deserialize for index rebuild")?;
 
             let url_key = format!(
                 "{}_{}_{}",
@@ -877,4 +1078,35 @@ mod tests {
             .iter()
             .any(|c| c.contains("Screenshot now available")));
     }
+
+    #[test]
+    fn test_schema_migration_v1_to_v2() {
+        let (mut db, _tmp) = create_test_db();
+        // Simulate legacy v1 payloads
+        let record = create_test_record("https://migrate.example", Utc::now());
+        let key = format!("{}_{}", record.timestamp.timestamp_millis(), record.id);
+        let legacy = bincode1::serialize(&record).expect("v1 serialize");
+        db.scans_tree.insert(key.as_bytes(), legacy).unwrap();
+        db.meta_tree.remove(SCHEMA_VERSION_KEY).ok();
+        db.db.flush().unwrap();
+
+        assert_eq!(db.schema_version().unwrap(), 1);
+        let report = db.migrate_v1_to_v2(false).unwrap();
+        assert!(!report.skipped);
+        assert_eq!(report.scans_migrated, 1);
+        assert_eq!(db.schema_version().unwrap(), SCHEMA_VERSION);
+
+        let loaded = db
+            .query_scans(&HistoryQuery {
+                url_pattern: Some("migrate.example".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].url, record.url);
+
+        let again = db.migrate_v1_to_v2(false).unwrap();
+        assert!(again.skipped);
+    }
+
 }
