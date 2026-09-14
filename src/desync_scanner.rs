@@ -2925,9 +2925,7 @@ impl DesyncScanner {
     }
 
     fn generate_marker(&self) -> String {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        format!("{:08x}", rng.gen::<u32>())
+        format!("{:08x}", rand::random::<u32>())
     }
 
     fn extract_host(&self, url: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
@@ -3039,22 +3037,18 @@ impl DesyncScanner {
         use std::sync::Arc;
         use tokio_rustls::{rustls, TlsConnector};
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
         let mut root_store = rustls::RootCertStore::empty();
-        root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
-            rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        }));
+        root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
         let config = rustls::ClientConfig::builder()
-            .with_safe_defaults()
             .with_root_certificates(root_store)
             .with_no_client_auth();
 
         let connector = TlsConnector::from(Arc::new(config));
-        let domain = rustls::ServerName::try_from(host)?;
+        let domain = rustls::pki_types::ServerName::try_from(host.to_owned())
+            .map_err(|_| "Invalid DNS name for TLS")?;
 
         let tcp_stream = tokio::time::timeout(
             self.config.connect_timeout,

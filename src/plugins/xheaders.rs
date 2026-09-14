@@ -2494,7 +2494,7 @@ mod tests {
     fn test_x_ua_compatible_meta_tag_detection() {
         let plugin = XHeadersPlugin;
         let headers = HeaderMap::new();
-        let body = r#"<html><head><meta http-equiv=\"X-UA-Compatible\" content=\"IE=11\" /></head></html>"#;
+        let body = r#"<html><head><meta http-equiv="X-UA-Compatible" content="IE=11" /></head></html>"#;
 
         let http_inner = HttpInner::new_with_all(
             headers,

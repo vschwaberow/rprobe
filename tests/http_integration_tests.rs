@@ -28,7 +28,8 @@ async fn test_basic_http_request() {
         .mount(&mock_server)
         .await;
 
-    let config = ConfigParameter::new();
+    let mut config = ConfigParameter::new();
+    config.set_allow_internal_addresses(true);
     let state = Arc::new(GetState::new());
     let mut http = Http::new(state, config, NonZeroU32::new(10).unwrap());
 
@@ -59,7 +60,8 @@ async fn test_multiple_status_codes() {
         .mount(&mock_server)
         .await;
 
-    let config = ConfigParameter::new();
+    let mut config = ConfigParameter::new();
+    config.set_allow_internal_addresses(true);
     let state = Arc::new(GetState::new());
     let mut http = Http::new(state, config, NonZeroU32::new(10).unwrap());
 
@@ -100,7 +102,8 @@ async fn test_headers_capture() {
         .mount(&mock_server)
         .await;
 
-    let config = ConfigParameter::new();
+    let mut config = ConfigParameter::new();
+    config.set_allow_internal_addresses(true);
     let state = Arc::new(GetState::new());
     let mut http = Http::new(state, config, NonZeroU32::new(10).unwrap());
 
@@ -129,6 +132,7 @@ async fn test_config_workers() {
     }
 
     let mut config = ConfigParameter::new();
+    config.set_allow_internal_addresses(true);
     config.set_workers(2);
 
     let state = Arc::new(GetState::new());

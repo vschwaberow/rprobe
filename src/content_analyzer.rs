@@ -82,7 +82,7 @@ static SENSITIVE_PATTERNS: Lazy<PatternMatcher> = Lazy::new(|| {
             FindingSeverity::Low,
         ),
         (
-            r#"(?i)auth[_\-\s]*token[_\-\s]*[:=]\s*(?:'|")([\\w\-\\.]+)(?:'|")"#,
+            r#"(?i)auth[_\-\s]*token[_\-\s]*[:=]\s*(?:'|")([\w\-\.]+)(?:'|")"#,
             "Auth Token",
             "Authentication token found in page content",
             FindingSeverity::High,

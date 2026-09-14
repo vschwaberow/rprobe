@@ -26,7 +26,10 @@ use reqwest::Url;
 use sha2::{Digest, Sha256};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, ToSocketAddrs};
 
-fn validate_url(url: &str) -> Result<Url, Box<dyn std::error::Error + Send + Sync>> {
+fn validate_url(
+    url: &str,
+    allow_internal: bool,
+) -> Result<Url, Box<dyn std::error::Error + Send + Sync>> {
     let parsed = Url::parse(url)?;
 
     match parsed.scheme() {
@@ -38,7 +41,7 @@ fn validate_url(url: &str) -> Result<Url, Box<dyn std::error::Error + Send + Syn
         return Err("Invalid host".into());
     }
 
-    if is_internal_address(&parsed)? {
+    if !allow_internal && is_internal_address(&parsed)? {
         return Err("Internal addresses not allowed".into());
     }
 
@@ -245,7 +248,7 @@ impl Http {
 
                     debug!("Starting HTTP request for URL: {}", final_url);
 
-                    let validated_url = match validate_url(&final_url) {
+                    let validated_url = match validate_url(&final_url, config_ptr.allow_internal_addresses()) {
                         Ok(url) => {
                             trace!("URL validation passed for: {}", final_url);
                             url
@@ -369,7 +372,11 @@ impl Http {
                         let hash_input = format!("{}{}", res.url(), res.body());
                         let mut hasher = Sha256::new();
                         hasher.update(&hash_input);
-                        let hash = format!("{:x}", hasher.finalize());
+                        let hash = hasher
+                            .finalize()
+                            .iter()
+                            .map(|b| format!("{:02x}", b))
+                            .collect::<String>();
 
                         debug!("Generated content hash for {}: {}", res.url(), hash);
 
@@ -416,7 +423,7 @@ impl Http {
                             if let Ok(mut robots_url) = Url::parse(res.url()) {
                                 robots_url.set_path("/robots.txt");
                                 trace!("Robots.txt URL: {}", robots_url);
-                                match validate_url(robots_url.as_str()) {
+                                match validate_url(robots_url.as_str(), config_ptr.allow_internal_addresses()) {
                                     Ok(validated_robots_url) => {
                                         match client.get(validated_robots_url).send().await {
                                             Ok(robot_resp) => {
@@ -546,21 +553,21 @@ mod tests {
 
     #[test]
     fn test_url_scheme_validation() {
-        assert!(validate_url("http://example.com").is_ok());
-        assert!(validate_url("https://example.com").is_ok());
+        assert!(validate_url("http://example.com", false).is_ok());
+        assert!(validate_url("https://example.com", false).is_ok());
 
-        assert!(validate_url("ftp://example.com").is_err());
-        assert!(validate_url("javascript:alert(1)").is_err());
-        assert!(validate_url("file:///etc/passwd").is_err());
+        assert!(validate_url("ftp://example.com", false).is_err());
+        assert!(validate_url("javascript:alert(1)", false).is_err());
+        assert!(validate_url("file:///etc/passwd", false).is_err());
     }
 
     #[test]
     fn test_internal_ip_blocking() {
-        assert!(validate_url("http://127.0.0.1").is_err());
-        assert!(validate_url("http://localhost").is_err());
-        assert!(validate_url("http://10.0.0.1").is_err());
-        assert!(validate_url("http://192.168.1.1").is_err());
-        assert!(validate_url("http://172.16.0.1").is_err());
-        assert!(validate_url("http://169.254.169.254").is_err());
+        assert!(validate_url("http://127.0.0.1", false).is_err());
+        assert!(validate_url("http://localhost", false).is_err());
+        assert!(validate_url("http://10.0.0.1", false).is_err());
+        assert!(validate_url("http://192.168.1.1", false).is_err());
+        assert!(validate_url("http://172.16.0.1", false).is_err());
+        assert!(validate_url("http://169.254.169.254", false).is_err());
     }
 }

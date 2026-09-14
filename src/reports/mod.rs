@@ -433,7 +433,7 @@ mod tests {
         let engine = ReportEngine::new();
         let scans = vec![
             create_test_scan("https://example.com", "200"),
-            create_test_scan("https://test.com", "404"),
+            create_test_scan("https://test.com", "Failed"),
         ];
 
         let report_data = engine.create_report_data(scans);

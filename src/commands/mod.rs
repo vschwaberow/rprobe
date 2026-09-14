@@ -7,12 +7,13 @@
 use anyhow::Result;
 use colored::*;
 
-use crate::cli::{CleanArgs, CompareArgs, HistoryArgs, OutputArgs, StatsArgs};
+use crate::cli::{CleanArgs, CompareArgs, HistoryArgs, MigrateArgs, OutputArgs, StatsArgs};
 use crate::storage::HistoryDatabase;
 
 pub mod clean;
 pub mod compare;
 pub mod history;
+pub mod migrate;
 pub mod output;
 pub mod stats;
 
@@ -35,6 +36,11 @@ pub async fn handle_clean_command(args: &CleanArgs, db: &HistoryDatabase) -> Res
 pub async fn handle_stats_command(args: &StatsArgs, db: &HistoryDatabase) -> Result<()> {
     stats::execute(args, db).await
 }
+
+pub async fn handle_migrate_command(args: &MigrateArgs, db: &mut HistoryDatabase) -> Result<()> {
+    migrate::execute(args, db).await
+}
+
 
 fn print_success(message: &str) {
     println!("{} {}", "✓".green().bold(), message);
