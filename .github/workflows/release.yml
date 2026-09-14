@@ -15,15 +15,23 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-pc-windows-gnu
-          - x86_64-apple-darwin
-          - x86_64-unknown-freebsd
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            use_cross: true
+          - target: x86_64-pc-windows-gnu
+            os: ubuntu-latest
+            use_cross: true
+          - target: x86_64-unknown-freebsd
+            os: ubuntu-latest
+            use_cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            use_cross: false
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Resolve source ref
         id: ref
@@ -39,12 +47,21 @@ jobs:
           ref: ${{ steps.ref.outputs.ref }}
 
       - name: Install cross
+        if: matrix.use_cross
         run: cargo install cross --locked
 
-      - name: Build
+      - name: Build with cross
+        if: matrix.use_cross
         run: cross build --release --target ${{ matrix.target }}
 
+      - name: Build native
+        if: ${{ !matrix.use_cross }}
+        run: |
+          rustup target add "${{ matrix.target }}"
+          cargo build --release --target "${{ matrix.target }}"
+
       - name: Package
+        shell: bash
         run: |
           mkdir -p artifacts
           if [[ "${{ matrix.target }}" == *"windows"* ]]; then
