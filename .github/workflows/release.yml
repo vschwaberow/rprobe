@@ -3,11 +3,21 @@ name: Build and Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach artifacts to (e.g. v0.10.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         target:
           - x86_64-unknown-linux-gnu
@@ -15,39 +25,65 @@ jobs:
           - x86_64-apple-darwin
           - x86_64-unknown-freebsd
     steps:
-      - uses: actions/checkout@v3
+      - name: Resolve source ref
+        id: ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
 
       - name: Install cross
-        run: cargo install cross
+        run: cargo install cross --locked
 
       - name: Build
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Package
         run: |
-          mkdir artifacts
+          mkdir -p artifacts
           if [[ "${{ matrix.target }}" == *"windows"* ]]; then
-            zip artifacts/rprobe-${{ matrix.target }}.zip target/${{ matrix.target }}/release/rprobe.exe
+            zip "artifacts/rprobe-${{ matrix.target }}.zip" "target/${{ matrix.target }}/release/rprobe.exe"
           else
-            tar czf artifacts/rprobe-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release rprobe
-      - uses: actions/upload-artifact@v3
+            tar czf "artifacts/rprobe-${{ matrix.target }}.tar.gz" -C "target/${{ matrix.target }}/release" rprobe
+          fi
+
+      - uses: actions/upload-artifact@v4
         with:
           name: rprobe-${{ matrix.target }}
           path: artifacts/*
+          if-no-files-found: error
 
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: '**'
-          path: artifacts/
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
         with:
+          pattern: rprobe-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
           files: artifacts/*
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
